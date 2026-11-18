@@ -53,7 +53,7 @@ PostgreSQL        Redis                 Object Storage (S3)
 | Cache / trạng thái nóng | Redis                                         |  Đã chốt   | Trạng thái trận đang diễn ra, rate limit, phiên khách, pub/sub giữa các instance.                       |
 | Validation DTO        | Zod                                             |  Đã chốt   | Schema dùng chung với frontend qua `packages/shared`. Thay thế: class-validator.                       |
 | Realtime              | Socket.IO + `@socket.io/redis-adapter`          |  Đã chốt   | Room/namespace, tự kết nối lại, ack (chống gửi trùng BR-GAME-03), mở rộng ngang qua Redis. Thay thế: `ws` thuần. |
-| Xác thực              | JWT access token ngắn hạn + refresh token xoay vòng trong cookie `HttpOnly`, `Secure`, `SameSite` |  Đề xuất   | Thu hồi được phiên khi khóa tài khoản (BR-AUTH-02). Refresh token lưu hash trong DB.                   |
+| Xác thực              | JWT access token ngắn hạn + refresh token xoay vòng trong cookie `HttpOnly`, `Secure`, `SameSite` |  Đã chốt   | Thu hồi được phiên khi khóa tài khoản (BR-AUTH-02). Refresh token lưu hash trong DB.                   |
 | Băm mật khẩu          | Argon2id                                        |  Đề xuất   | Theo skill security-review. Thay thế: bcrypt.                                                           |
 | Rate limit            | `rate-limiter-flexible` (Redis)                 |  Đề xuất   | Đăng nhập sai (BR-AUTH-03), reaction (BR-SPEC-02), API chung.                                           |
 | Bảo mật HTTP          | Helmet, CORS giới hạn origin                    |  Đề xuất   |                                                                                                         |

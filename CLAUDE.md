@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Olympia Online is an npm-workspaces monorepo. Phase P0 (foundation) of [docs/ke-hoach-trien-khai.md](docs/ke-hoach-trien-khai.md) is done: tooling, dev services, and skeletons for `apps/api`, `apps/web` and `packages/shared` exist; no business features yet.
+Olympia Online is an npm-workspaces monorepo. Phase P0 (foundation) of [docs/ke-hoach-trien-khai.md](docs/ke-hoach-trien-khai.md) is done; P1 (accounts, auth, authorization) backend is in place (modules `auth`, `users`, `organizations`, `audit`), web UI for P1 still to do.
 
 Docs (all in Vietnamese — read the relevant ones before designing any feature):
 
@@ -25,9 +25,10 @@ npm run dev                  # api :3000 (tsx watch) + web :5173 (Vite, proxies 
 npm run lint                 # ESLint (type-aware) over the whole repo
 npm run format               # Prettier write; format:check in CI
 npm run typecheck            # tsc in every workspace
-npm test                     # Jest (api) + Vitest (web)
+npm test                     # Jest (api, needs services:up — uses DB olympia_test) + Vitest (web)
 npm run test:e2e             # Playwright (apps/web/e2e); first run: cd apps/web && npx playwright install chromium
 npm run build                # shared → api → web, in that order
+npm run user:grant-super-admin -w @olympia/api -- <email>   # bootstrap the first Super Admin
 ```
 
 Single test: `npx jest src/app.test.ts -t "404"` in `apps/api`; `npx vitest run src/app/routes.test.tsx -t "404"` in `apps/web`.
@@ -35,7 +36,7 @@ Single test: `npx jest src/app.test.ts -t "404"` in `apps/api`; `npx vitest run 
 ## Code layout and conventions
 
 - **packages/shared** (`@olympia/shared`, ESM): Zod schemas and types shared by api and web — API error body, health report, Socket.IO event contracts. Its `exports` map has a `development` condition pointing at `src/*.ts`; dev tools (tsx `--conditions=development`, Vite, Vitest, api/web `tsconfig` `customConditions`) consume source directly, while `npm run build` / production use `dist`. Jest maps it to source via `moduleNameMapper`. After changing shared, rebuild it before building api/web.
-- **apps/api** (CommonJS, `module: nodenext`): `main.ts` wires infrastructure; `app.ts` is a pure `createApp(deps)` factory used by Supertest tests. Business code lives in `src/modules/<module>/` (`*.routes.ts` → `*.controller.ts` → `*.service.ts`); dependencies are passed explicitly (factory functions), not imported singletons. Throw `AppError` subclasses (`src/shared/errors`) for expected errors; `createErrorHandler` turns them into `{ error: { code, message, details? } }` and hides everything else as 500. Env is validated with Zod in `src/config/env.ts` — add new variables there and to `.env.example`. Schema changes only via migrations in `src/infrastructure/database/migrations` (`synchronize` is off); entities go in modules as `*.entity.ts`. Realtime: `createRealtimeServer` takes a `SocketAuthenticator`; until P1 it is `denyAllAuthenticator`. Tests are colocated `*.test.ts`; `tsconfig.jest.json` compiles to CommonJS for Jest.
+- **apps/api** (CommonJS, `module: nodenext`): `main.ts` wires infrastructure; `app.ts` is a pure `createApp(deps)` factory used by Supertest tests. Business code lives in `src/modules/<module>/` (`*.routes.ts` → `*.controller.ts` → `*.service.ts`); dependencies are passed explicitly (factory functions), not imported singletons. Throw `AppError` subclasses (`src/shared/errors`) for expected errors; `createErrorHandler` turns them into `{ error: { code, message, details? } }` and hides everything else as 500. Env is validated with Zod in `src/config/env.ts` — add new variables there and to `.env.example`. Schema changes only via migrations in `src/infrastructure/database/migrations` (`synchronize` is off), registered in `migrations/index.ts`; entities go in modules as `*.entity.ts` and are registered in `infrastructure/database/entities.ts` (no globs). Give every `@Column` an explicit `type` — tsx/esbuild emits no decorator metadata. With TypeORM 1.x pass `.returning('col')` as a string; an array is treated as property names and silently dropped. Auth (DL-021): access JWT in `Authorization: Bearer`, rotating refresh token in an HttpOnly cookie scoped to `/api/auth`; every `/api/auth` route requires the `x-olympia-csrf: 1` header. `createAuthenticate` sets `req.principal` (user or guest) by re-reading session + user from DB on each request, so locks/revocations apply immediately; guard routes with `requireUser` / `requirePermission(SystemPermission.X)`. The permission matrix (spec 2.2) lives in `packages/shared/src/permissions.ts` and is shared with web. Realtime uses the same access token (`createTokenSocketAuthenticator`); revoked sessions are disconnected via `disconnectRevokedSessions`. Tests are colocated `*.test.ts`; Jest `globalSetup` creates/migrates `olympia_test` and `src/test/test-context.ts` builds the full app with an in-memory mailer and rate limiter. `tsconfig.jest.json` compiles to CommonJS for Jest.
 - **apps/web** (ESM): `src/app` (routes, layout, query client), `src/pages`, `src/features/<feature>` (components + hooks), `src/lib/api-client.ts` (`apiGet` validates responses with shared Zod schemas and throws `ApiError`; `status === 0` means network error). Server data via TanStack Query. Tailwind v4 with theme tokens (`brand-*`, `accent-*`) in `src/index.css`. Tests use `renderApp(path)` from `src/test/render.tsx` and stub `fetch`. UI text is Vietnamese.
 
 ## Stack

@@ -3,6 +3,7 @@ import { loadEnv } from './env';
 const validEnv = {
   DATABASE_URL: 'postgres://user:pass@localhost:5432/db',
   REDIS_URL: 'redis://localhost:6379',
+  JWT_SECRET: 'a-very-long-test-secret-0123456789abcdef',
 };
 
 describe('loadEnv', () => {
@@ -35,5 +36,25 @@ describe('loadEnv', () => {
 
   it('ném lỗi khi PORT không hợp lệ', () => {
     expect(() => loadEnv({ ...validEnv, PORT: '70000' })).toThrow(/PORT/);
+  });
+
+  it('ném lỗi khi JWT_SECRET quá ngắn', () => {
+    expect(() => loadEnv({ ...validEnv, JWT_SECRET: 'short' })).toThrow(/JWT_SECRET/);
+  });
+
+  it('không cho dùng JWT_SECRET mẫu ở production', () => {
+    expect(() =>
+      loadEnv({
+        ...validEnv,
+        NODE_ENV: 'production',
+        JWT_SECRET: 'dev-only-secret-change-me-0123456789abcdef',
+      }),
+    ).toThrow(/JWT_SECRET/);
+  });
+
+  it('COOKIE_SECURE mặc định bật ở production, tắt khi dev, ghi đè được', () => {
+    expect(loadEnv(validEnv).COOKIE_SECURE).toBe(false);
+    expect(loadEnv({ ...validEnv, NODE_ENV: 'production' }).COOKIE_SECURE).toBe(true);
+    expect(loadEnv({ ...validEnv, COOKIE_SECURE: 'true' }).COOKIE_SECURE).toBe(true);
   });
 });

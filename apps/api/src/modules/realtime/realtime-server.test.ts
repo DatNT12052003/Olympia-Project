@@ -2,6 +2,7 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { ClientToServerEvents, ServerTimeAck, ServerToClientEvents } from '@olympia/shared';
 import { io as connectClient, type Socket as ClientSocket } from 'socket.io-client';
+import type { Principal } from '../../shared/auth/principal';
 import { silentLogger } from '../../test/test-logger';
 import {
   createRealtimeServer,
@@ -9,6 +10,21 @@ import {
   type RealtimeServer,
   type SocketAuthenticator,
 } from './realtime-server';
+
+const userPrincipal: Principal = {
+  kind: 'user',
+  userId: '00000000-0000-4000-8000-000000000001',
+  sessionId: '00000000-0000-4000-8000-000000000002',
+  systemRole: 'member',
+  emailVerified: true,
+  canHost: true,
+  organizationId: null,
+};
+const guestPrincipal: Principal = {
+  kind: 'guest',
+  guestId: '00000000-0000-4000-8000-000000000003',
+  displayName: 'Khách',
+};
 
 type TestClient = ClientSocket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -66,14 +82,14 @@ describe('Realtime server', () => {
   it('chấp nhận kết nối khi xác thực thành công và gắn principal', async () => {
     const authenticate: SocketAuthenticator = (handshake) =>
       (handshake.auth as { token?: string }).token === 'valid'
-        ? Promise.resolve({ id: 'user-1', kind: 'user' })
+        ? Promise.resolve(userPrincipal)
         : Promise.reject(new Error('invalid'));
     const socket = connect(await start(authenticate), 'valid');
 
     await waitForConnect(socket);
     const [serverSocket] = await io.fetchSockets();
 
-    expect(serverSocket?.data.principal).toEqual({ id: 'user-1', kind: 'user' });
+    expect(serverSocket?.data.principal).toEqual(userPrincipal);
   });
 
   it('từ chối token sai', async () => {
@@ -86,7 +102,7 @@ describe('Realtime server', () => {
   });
 
   it('system:ping trả về thời điểm server', async () => {
-    const socket = connect(await start(() => Promise.resolve({ id: 'guest-1', kind: 'guest' })));
+    const socket = connect(await start(() => Promise.resolve(guestPrincipal)));
     await waitForConnect(socket);
 
     const before = Date.now();
