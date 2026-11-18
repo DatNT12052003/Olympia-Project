@@ -1,17 +1,19 @@
 import 'reflect-metadata';
-import path from 'node:path';
 import { DataSource } from 'typeorm';
+import { entities } from './entities';
+import { migrations } from './migrations';
 
 /**
  * Tạo DataSource PostgreSQL. Schema chỉ thay đổi qua migration; không dùng `synchronize`.
- * Entity đặt trong module nghiệp vụ với hậu tố `.entity.ts`.
+ * Entity đặt trong module nghiệp vụ (`*.entity.ts`) và đăng ký ở `entities.ts`;
+ * migration đăng ký ở `migrations/index.ts`.
  */
 export function createDataSource(databaseUrl: string): DataSource {
   return new DataSource({
     type: 'postgres',
     url: databaseUrl,
-    entities: [path.join(__dirname, '../../modules/**/*.entity.{ts,js}')],
-    migrations: [path.join(__dirname, 'migrations/*.{ts,js}')],
+    entities,
+    migrations,
     synchronize: false,
     migrationsRun: false,
     logging: false,

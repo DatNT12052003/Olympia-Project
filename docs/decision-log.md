@@ -9,7 +9,7 @@
 | Trạng thái       | Ý nghĩa                                                         |
 | ---------------- | --------------------------------------------------------------- |
 | Đã chấp nhận     | Đã chốt, áp dụng khi triển khai.                                |
-| Đã chấp nhận          | Đã có phương án, chờ Product Owner / nhóm kỹ thuật xác nhận.    |
+| Đề xuất          | Đã có phương án, chờ Product Owner / nhóm kỹ thuật xác nhận.    |
 | Chưa quyết định  | Đã xác định cần quyết định, chưa có phương án.                  |
 | Bị thay thế      | Không còn hiệu lực; ghi rõ quyết định thay thế.                 |
 
@@ -23,7 +23,7 @@
 | DL-002 | 2026-11-18 | Nghiệp vụ  | Mọi tài khoản đã xác minh email đều là Host                                 | Đã chấp nhận         |
 | DL-003 | 2026-11-18 | Nghiệp vụ  | Luật vòng thi dạng preset, không bám một phiên bản luật chính thức         | Đã chấp nhận         |
 | DL-004 | 2026-11-18 | Nghiệp vụ  | Hỗ trợ cả nhập trên thiết bị và trả lời bằng lời; mặc định nhập trên thiết bị | Đã chấp nhận      |
-| DL-005 | 2026-11-18 | Nghiệp vụ  | Phạm vi Manager theo Tổ chức                                               | Đề xuất         |
+| DL-005 | 2026-11-18 | Nghiệp vụ  | Phạm vi Manager theo Tổ chức                                               | Đã chấp nhận    |
 | DL-006 | 2026-11-18 | Nghiệp vụ  | Bắt buộc kiểm duyệt bộ câu hỏi public trước khi hiển thị                   | Đề xuất         |
 | DL-007 | 2026-11-18 | Nghiệp vụ  | Spectator xem video Host; giới hạn số Spectator mỗi phòng                  | Đề xuất         |
 | DL-008 | 2026-11-18 | Nghiệp vụ  | Không ghi hình ở phiên bản đầu; có chính sách dữ liệu cá nhân              | Đề xuất         |
@@ -39,7 +39,7 @@
 | DL-018 | 2026-11-18 | Công nghệ  | Realtime dùng Socket.IO + Redis adapter                                    | Đã chấp nhận    |
 | DL-019 | 2026-11-18 | Công nghệ  | SFU dùng LiveKit tự host                                                   | Đề xuất         |
 | DL-020 | 2026-11-18 | Công nghệ  | Validation dùng Zod, chia sẻ qua `packages/shared`                         | Đã chấp nhận    |
-| DL-021 | 2026-11-18 | Công nghệ  | Xác thực JWT ngắn hạn + refresh token xoay vòng trong cookie HttpOnly      | Đề xuất         |
+| DL-021 | 2026-11-18 | Công nghệ  | Xác thực JWT ngắn hạn + refresh token xoay vòng trong cookie HttpOnly      | Đã chấp nhận    |
 | DL-022 | 2026-11-18 | Công nghệ  | Test runner frontend dùng Vitest                                           | Đã chấp nhận    |
 | DL-023 | –          | Hạ tầng    | Nơi triển khai production                                                  | Chưa quyết định |
 | DL-024 | –          | Hạ tầng    | Object storage và CDN production                                           | Chưa quyết định |
@@ -168,7 +168,7 @@ Chi tiết lý do và phương án thay thế: [cong-nghe-su-dung.md](cong-nghe-
 | DL-018 | Socket.IO + Redis adapter                                                                   | `ws` thuần                  | Điểm T1.                                        |
 | DL-019 | LiveKit tự host                                                                             | mediasoup; dịch vụ cloud trả phí | Điểm T2.                                   |
 | DL-020 | Zod, chia sẻ qua `packages/shared`                                                          | class-validator             | Điểm T3.                                        |
-| DL-021 | JWT ngắn hạn + refresh token xoay vòng trong cookie HttpOnly                                | Session lưu Redis           | Điểm T4.                                        |
+| DL-021 | JWT ngắn hạn + refresh token xoay vòng trong cookie HttpOnly                                | Session lưu Redis           | Điểm T4. Chốt ngày 2026-11-18 trước P1.         |
 | DL-022 | Vitest cho frontend                                                                         | Jest                        | Điểm T5.                                        |
 | DL-023 | Nơi triển khai production                                                                   | VPS tự quản / cloud / Kubernetes | Điểm T6. Cần thông tin ngân sách và quy mô. |
 | DL-024 | Object storage và CDN production                                                            | –                           | Điểm T7. Phụ thuộc DL-023.                      |

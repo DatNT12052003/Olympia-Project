@@ -2,6 +2,9 @@
 module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
+  // Tạo database test và chạy migration (cần PostgreSQL của npm run services:up).
+  globalSetup: '<rootDir>/src/test/global-setup.ts',
+  testTimeout: 15000,
   transform: {
     '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.jest.json' }],
   },

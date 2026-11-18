@@ -16,6 +16,21 @@ jobs:
   verify:
     name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
+    # Test API chạy trên PostgreSQL thật (database olympia_test do Jest globalSetup tạo).
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: olympia
+          POSTGRES_PASSWORD: olympia
+          POSTGRES_DB: olympia
+        ports:
+          - 5440:5432
+        options: >-
+          --health-cmd "pg_isready -U olympia -d olympia"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

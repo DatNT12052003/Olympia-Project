@@ -3,7 +3,7 @@ import { CommonErrorCode } from '@olympia/shared';
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 import type { Logger } from 'pino';
 import { ZodError } from 'zod';
-import { AppError, NotFoundError } from '../errors/app-error';
+import { AppError, NotFoundError, TooManyRequestsError } from '../errors/app-error';
 
 /** Lỗi do middleware của Express/body-parser ném ra (có `status` và `expose`). */
 interface HttpLikeError {
@@ -31,6 +31,9 @@ export const notFoundHandler: RequestHandler = (req, _res, next) => {
 export function createErrorHandler(logger: Logger): ErrorRequestHandler {
   return (err: unknown, _req, res, _next) => {
     if (err instanceof AppError) {
+      if (err instanceof TooManyRequestsError) {
+        res.setHeader('Retry-After', String(err.retryAfterSeconds));
+      }
       res.status(err.statusCode).json(body(err.code, err.message, err.details));
       return;
     }
