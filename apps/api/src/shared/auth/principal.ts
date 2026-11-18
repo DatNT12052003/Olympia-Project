@@ -19,6 +19,8 @@ export interface GuestPrincipal {
   kind: 'guest';
   guestId: string;
   displayName: string;
+  /** Phòng mà phiên khách được cấp cho (DL-028). */
+  roomId: string;
 }
 
 export type Principal = UserPrincipal | GuestPrincipal;

@@ -42,6 +42,14 @@ const envSchema = z
 
     SMTP_URL: z.url({ protocol: /^smtps?$/ }).default('smtp://localhost:1026'),
     MAIL_FROM: z.string().min(3).default('Olympia Online <no-reply@olympia.local>'),
+
+    /** Giới hạn phòng thi (DL-031); chuyển sang cấu hình hệ thống ở P7. */
+    MAX_ACTIVE_ROOMS_PER_HOST: z.coerce.number().int().min(1).default(5),
+    MAX_SPECTATORS_PER_ROOM: z.coerce.number().int().min(1).default(200),
+    /** Giữ chỗ khi mất kết nối (BR-RC-01, DL-029). */
+    RECONNECT_GRACE_SECONDS: z.coerce.number().int().min(5).default(120),
+    /** Phòng Open không hoạt động thì tự đóng (BR-ROOM-02, DL-030). */
+    ROOM_IDLE_MINUTES: z.coerce.number().int().min(1).default(60),
   })
   .refine((env) => env.NODE_ENV !== 'production' || !env.JWT_SECRET.startsWith('dev-only'), {
     path: ['JWT_SECRET'],

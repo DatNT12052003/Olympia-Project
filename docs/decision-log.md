@@ -44,6 +44,13 @@
 | DL-023 | –          | Hạ tầng    | Nơi triển khai production                                                  | Chưa quyết định |
 | DL-024 | –          | Hạ tầng    | Object storage và CDN production                                           | Chưa quyết định |
 | DL-025 | 2026-11-18 | Hạ tầng    | Object storage S3-compatible cho môi trường dev (thay MinIO)               | Chưa quyết định |
+| DL-026 | 2026-11-18 | Kiến trúc  | Sảnh chờ: thao tác qua REST, trạng thái phòng đẩy xuống qua Socket.IO      | Đã chấp nhận    |
+| DL-027 | 2026-11-18 | Nghiệp vụ  | Link mời là mã phòng; "tạo link mới" = đổi mã phòng                        | Đã chấp nhận    |
+| DL-028 | 2026-11-18 | Nghiệp vụ  | Phiên khách gắn với một phòng                                              | Đã chấp nhận    |
+| DL-029 | 2026-11-18 | Nghiệp vụ  | Mất kết nối ở sảnh chờ cũng giữ chỗ 120 giây                               | Đã chấp nhận    |
+| DL-030 | 2026-11-18 | Nghiệp vụ  | Định nghĩa "phòng không hoạt động" để tự đóng                              | Đã chấp nhận    |
+| DL-031 | 2026-11-18 | Kiến trúc  | Giới hạn hệ thống của phòng lấy từ biến môi trường cho tới P7              | Đã chấp nhận    |
+| DL-032 | 2026-11-18 | Nghiệp vụ  | Danh sách phòng công khai đơn giản trên trang Vào phòng                    | Đã chấp nhận    |
 
 ---
 
@@ -154,6 +161,45 @@
 
 - **Quyết định:** Mọi REST endpoint và sự kiện realtime kiểm tra vai trò hệ thống, vai trò trong phòng và quyền sở hữu tài nguyên; mặc định từ chối.
 - **Liên quan:** BR-ROLE-05, BR-ROLE-06, BR-SPEC-01.
+
+### DL-026 – Sảnh chờ: thao tác qua REST, trạng thái qua Socket.IO
+
+- **Bối cảnh:** P3 cần đồng bộ sảnh chờ realtime; thao tác sảnh chờ (vào phòng, duyệt, xếp ghế, kick/ban, Sẵn sàng) không cần độ trễ thấp như trả lời/bấm chuông.
+- **Quyết định:** Thao tác sảnh chờ là REST endpoint (dùng chung middleware phân quyền, dễ test). Mỗi thay đổi tăng `state_version` của phòng trong cùng transaction và server phát lại toàn bộ trạng thái phòng qua Socket.IO (bản cho Host đầy đủ hơn bản cho người chơi/khán giả). Socket dùng để nhận trạng thái, theo dõi online/mất kết nối và gửi reaction. Hành động trong trận (P4) đi qua socket có ack.
+- **Hệ quả:** Client bỏ qua bản trạng thái có version cũ hơn (BR-RT-03); kết nối lại chỉ cần đăng ký lại phòng để nhận trạng thái hiện tại (BR-RC-02).
+- **Liên quan:** Mục 4.4, 10, 12, DL-018.
+
+### DL-027 – Link mời là mã phòng
+
+- **Bối cảnh:** Đặc tả 4.1: link mời chứa mã phòng; Host tạo lại link để vô hiệu link cũ.
+- **Quyết định:** Link mời có dạng `/vao-phong/<mã>`. "Tạo link mới" sinh mã phòng mới; mã cũ hết hiệu lực. Mã 6 ký tự chữ-số, bỏ ký tự dễ nhầm (0/O, 1/I/L), duy nhất trong các phòng đang hoạt động.
+- **Hệ quả:** Không cần token mời riêng. Người đã ở trong phòng không bị ảnh hưởng khi đổi mã.
+
+### DL-028 – Phiên khách gắn với một phòng
+
+- **Bối cảnh:** BR-AUTH-05: phiên khách chỉ có hiệu lực trong phòng đã vào.
+- **Quyết định:** Khách được cấp phiên khi vào phòng; phiên (cookie 24 giờ) và access token mang mã phòng. Khách vào phòng khác được cấp danh tính khách mới.
+- **Hệ quả:** Mọi thao tác của khách được kiểm tra đúng phòng; khách không thể dùng một phiên để đi qua nhiều phòng.
+
+### DL-029 – Mất kết nối ở sảnh chờ giữ chỗ 120 giây
+
+- **Bối cảnh:** BR-RC-01 chỉ nói rõ trường hợp đang thi.
+- **Quyết định:** Ở sảnh chờ, người mất kết nối cũng được giữ ghế/vai trò trong thời gian chờ (mặc định 120 giây, cùng giá trị BR-RC-01); hết thời gian thì xem như rời phòng và ghế được giải phóng. Mọi người thấy trạng thái "Mất kết nối".
+
+### DL-030 – Phòng không hoạt động
+
+- **Bối cảnh:** BR-ROOM-02: phòng Open không hoạt động 60 phút tự đóng.
+- **Quyết định:** "Không hoạt động" là không có thao tác nào trong phòng (vào phòng, duyệt, xếp ghế, Sẵn sàng, đổi cấu hình...) trong 60 phút **và** không ai đang kết nối vào phòng.
+
+### DL-031 – Giới hạn hệ thống của phòng lấy từ biến môi trường
+
+- **Bối cảnh:** BR-ROOM-03 và 4.1 cho phép Super Admin cấu hình giới hạn; trang cấu hình hệ thống thuộc P7.
+- **Quyết định:** Tới P7, các giới hạn đọc từ biến môi trường: số phòng đang mở tối đa mỗi Host (5), số khán giả tối đa mỗi phòng (200), thời gian giữ chỗ khi mất kết nối (120 giây), thời gian phòng không hoạt động (60 phút).
+
+### DL-032 – Danh sách phòng công khai
+
+- **Bối cảnh:** Mục 4.2 yêu cầu phòng công khai hiển thị trong danh sách; canvas thiết kế chưa có màn riêng.
+- **Quyết định:** Có API danh sách phòng công khai đang mở và một danh sách đơn giản trên trang Vào phòng, theo nền tảng giao diện (màn `Main`).
 
 ---
 

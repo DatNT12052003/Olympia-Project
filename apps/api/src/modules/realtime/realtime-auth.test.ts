@@ -1,16 +1,13 @@
 import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import {
-  type ClientToServerEvents,
-  CSRF_HEADER,
-  guestSessionResponseSchema,
-  type ServerToClientEvents,
-} from '@olympia/shared';
+import { type ClientToServerEvents, CSRF_HEADER, type ServerToClientEvents } from '@olympia/shared';
 import { io as connectClient, type Socket as ClientSocket } from 'socket.io-client';
 import request from 'supertest';
 import {
+  createOpenRoom,
   createTestContext,
   createUserAndLogin,
+  joinAsGuest,
   login,
   type TestContext,
 } from '../../test/test-context';
@@ -91,11 +88,9 @@ describe('Xác thực realtime dùng chung access token với REST', () => {
   });
 
   it('chấp nhận access token phiên khách', async () => {
-    const res = await request(ctx.app)
-      .post('/api/auth/guest')
-      .set(CSRF_HEADER, '1')
-      .send({ displayName: 'Khách xem' });
-    await connected(connect(guestSessionResponseSchema.parse(res.body).accessToken));
+    const { room } = await createOpenRoom(ctx);
+    const { accessToken } = await joinAsGuest(ctx, room.id, 'Khách xem');
+    await connected(connect(accessToken));
   });
 
   it('từ chối khi thiếu hoặc sai token', async () => {

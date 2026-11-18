@@ -3,7 +3,6 @@ import {
   changePasswordRequestSchema,
   forgotPasswordRequestSchema,
   type GuestSessionResponse,
-  guestSessionRequestSchema,
   loginRequestSchema,
   registerRequestSchema,
   resetPasswordRequestSchema,
@@ -11,7 +10,7 @@ import {
 } from '@olympia/shared';
 import type { CookieOptions, Request, RequestHandler, Response } from 'express';
 import { userPrincipal } from '../../shared/auth/http-auth';
-import type { AuthService, IssuedSession, RequestMeta } from './auth.service';
+import type { AuthService, IssuedGuestSession, IssuedSession, RequestMeta } from './auth.service';
 
 export const REFRESH_COOKIE = 'olympia_rt';
 export const GUEST_COOKIE = 'olympia_guest';
@@ -29,6 +28,27 @@ function requestMeta(req: Request): RequestMeta {
 function readCookie(req: Request, name: string): string | undefined {
   const value: unknown = (req.cookies as Record<string, unknown> | undefined)?.[name];
   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/** Ghi cookie phiên khách (chỉ gửi tới `/api/auth`) và trả body cho client. */
+export function writeGuestSession(
+  res: Response,
+  issued: IssuedGuestSession,
+  cookies: AuthCookieConfig,
+): GuestSessionResponse {
+  res.cookie(GUEST_COOKIE, issued.sessionToken, {
+    httpOnly: true,
+    secure: cookies.secure,
+    sameSite: 'strict',
+    path: AUTH_COOKIE_PATH,
+    expires: issued.sessionExpiresAt,
+  });
+  return {
+    accessToken: issued.accessToken,
+    accessTokenExpiresAt: issued.accessTokenExpiresAt.toISOString(),
+    sessionExpiresAt: issued.sessionExpiresAt.toISOString(),
+    guest: issued.guest,
+  };
 }
 
 export function createAuthController(authService: AuthService, cookies: AuthCookieConfig) {
@@ -111,19 +131,9 @@ export function createAuthController(authService: AuthService, cookies: AuthCook
   };
 
   const guest: RequestHandler = (req, res) => {
-    const input = guestSessionRequestSchema.parse(req.body ?? {});
-    const issued = authService.issueGuestSession(readCookie(req, GUEST_COOKIE), input);
-    res.cookie(GUEST_COOKIE, issued.sessionToken, {
-      ...baseCookie,
-      expires: issued.sessionExpiresAt,
-    });
-    const body: GuestSessionResponse = {
-      accessToken: issued.accessToken,
-      accessTokenExpiresAt: issued.accessTokenExpiresAt.toISOString(),
-      sessionExpiresAt: issued.sessionExpiresAt.toISOString(),
-      guest: issued.guest,
-    };
-    res.json(body);
+    // Chỉ làm mới phiên khách đã có; phiên mới được cấp khi khách vào phòng (DL-028).
+    const issued = authService.refreshGuestSession(readCookie(req, GUEST_COOKIE));
+    res.json(writeGuestSession(res, issued, cookies));
   };
 
   return {
