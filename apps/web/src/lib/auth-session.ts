@@ -85,6 +85,18 @@ export function getAuthState(): AuthState {
   return state;
 }
 
+/** Chờ tới khi biết trình duyệt có phiên đăng nhập hay không (hết trạng thái `loading`). */
+export function waitForAuth(): Promise<AuthState> {
+  if (state.status !== 'loading') return Promise.resolve(state);
+  return new Promise((resolve) => {
+    const unsubscribe = subscribeAuth(() => {
+      if (state.status === 'loading') return;
+      unsubscribe();
+      resolve(state);
+    });
+  });
+}
+
 /** Áp dụng phiên mới nhận từ login/register/refresh. */
 export function applySession(session: AuthSessionResponse, notifyOtherTabs = true): void {
   accessToken = session.accessToken;

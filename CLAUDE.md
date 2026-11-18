@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Olympia Online is an npm-workspaces monorepo. Phase P0 (foundation) of [docs/ke-hoach-trien-khai.md](docs/ke-hoach-trien-khai.md) is done; P1 (accounts, auth, authorization) is implemented in api (modules `auth`, `users`, `organizations`, `audit`) and web (auth pages, account page, admin pages).
+Olympia Online is an npm-workspaces monorepo. Phase P0 (foundation) of [docs/ke-hoach-trien-khai.md](docs/ke-hoach-trien-khai.md) is done; P1 (accounts, auth, authorization) is implemented in api (modules `auth`, `users`, `organizations`, `audit`) and web (auth pages, account page, admin pages). P3 (rooms, lobby, base realtime) is implemented in api (modules `rooms`, `realtime/room-realtime`) and web (`/phong-thi` Host pages, `/vao-phong` join, `/phong/:roomId` lobby; `features/rooms` with `useRoomChannel` for Socket.IO and `lib/guest-session.ts` for room-bound guest sessions, DL-028). Starting a match is P4.
 
 Docs (all in Vietnamese — read the relevant ones before designing any feature):
 
