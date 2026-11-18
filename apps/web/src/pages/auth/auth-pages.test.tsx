@@ -50,6 +50,31 @@ describe('Đăng nhập', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Email hoặc mật khẩu không đúng.');
   });
 
+  it('báo số lần thử còn lại trước khi tạm khóa (BR-AUTH-03)', async () => {
+    mockApi({
+      'POST /auth/login': () =>
+        jsonResponse(
+          {
+            error: {
+              code: 'INVALID_CREDENTIALS',
+              message: 'Email hoặc mật khẩu không đúng.',
+              details: { remainingAttempts: 3, lockoutMinutes: 15 },
+            },
+          },
+          401,
+        ),
+    });
+    renderApp('/dang-nhap');
+
+    await userEvent.type(await screen.findByLabelText('Email'), 'an@example.com');
+    await userEvent.type(screen.getByLabelText('Mật khẩu'), 'sai');
+    await userEvent.click(screen.getByRole('button', { name: 'Đăng nhập' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Email hoặc mật khẩu không đúng. Còn 3 lần thử trước khi tạm khóa 15 phút.',
+    );
+  });
+
   it('kiểm tra dữ liệu trước khi gửi', async () => {
     const { requests } = mockApi({});
     renderApp('/dang-nhap');
@@ -85,10 +110,10 @@ describe('Đăng ký', () => {
     renderApp('/dang-ky');
 
     await userEvent.type(await screen.findByLabelText('Mật khẩu'), 'ngan');
-    await userEvent.click(screen.getByRole('button', { name: 'Đăng ký' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Tạo tài khoản' }));
 
     expect(screen.getByLabelText('Mật khẩu')).toHaveAccessibleDescription(
-      /Tối thiểu 8 ký tự\.\s*Mật khẩu tối thiểu 8 ký tự\./,
+      /Mật khẩu quá ngắn · tối thiểu 8 ký tự\s*Mật khẩu tối thiểu 8 ký tự\./,
     );
     expect(screen.getByText('Bạn cần đồng ý chính sách quyền riêng tư.')).toBeInTheDocument();
   });
@@ -105,7 +130,7 @@ describe('Đăng ký', () => {
     await userEvent.type(screen.getByLabelText('Tên hiển thị'), 'Nguyễn An');
     await userEvent.type(screen.getByLabelText('Mật khẩu'), 'Mat-khau-123');
     await userEvent.click(screen.getByRole('checkbox'));
-    await userEvent.click(screen.getByRole('button', { name: 'Đăng ký' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Tạo tài khoản' }));
 
     expect(await screen.findByText('Email chưa được xác minh.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Gửi lại email xác minh' }));
@@ -129,7 +154,7 @@ describe('Đăng ký', () => {
     await userEvent.type(screen.getByLabelText('Tên hiển thị'), 'Nguyễn An');
     await userEvent.type(screen.getByLabelText('Mật khẩu'), 'Mat-khau-123');
     await userEvent.click(screen.getByRole('checkbox'));
-    await userEvent.click(screen.getByRole('button', { name: 'Đăng ký' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Tạo tài khoản' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Email đã được đăng ký.');
   });
@@ -163,9 +188,23 @@ describe('Xác minh email, quên và đặt lại mật khẩu', () => {
     renderApp('/quen-mat-khau');
 
     await userEvent.type(await screen.findByLabelText('Email'), 'ai-do@example.com');
-    await userEvent.click(screen.getByRole('button', { name: 'Gửi liên kết' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Gửi link đặt lại mật khẩu' }));
 
-    expect(await screen.findByText(/Nếu email này đã đăng ký/)).toBeInTheDocument();
+    expect(await screen.findByText(/Nếu email tồn tại trong hệ thống/)).toBeInTheDocument();
+    // Chặn gửi lặp: nút chuyển sang đếm ngược như thiết kế.
+    expect(screen.getByRole('button', { name: 'Gửi lại sau 0:45' })).toBeDisabled();
+    expect(screen.getByText(/có hiệu lực trong 30 phút/)).toBeInTheDocument();
+  });
+
+  it('gợi ý độ mạnh mật khẩu khi đăng ký', async () => {
+    mockApi({});
+    renderApp('/dang-ky');
+
+    await userEvent.type(await screen.findByLabelText('Mật khẩu'), 'matkhau-dai-2026');
+
+    expect(screen.getByLabelText('Mật khẩu')).toHaveAccessibleDescription(
+      'Mật khẩu mạnh · tối thiểu 8 ký tự',
+    );
   });
 
   it('đặt lại mật khẩu kiểm tra nhập lại và gửi token', async () => {

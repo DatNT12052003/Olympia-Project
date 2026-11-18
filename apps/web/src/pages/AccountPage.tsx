@@ -12,7 +12,7 @@ import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { TextField } from '../components/TextField';
 import { changePassword, resendVerification, updateProfile } from '../features/auth/auth-api';
-import { ROLE_LABELS } from '../features/auth/role-labels';
+import { roleLabel } from '../features/auth/role-labels';
 import { useAuth } from '../features/auth/use-auth';
 import { errorMessage } from '../lib/api-client';
 import { logout } from '../lib/auth-session';
@@ -64,7 +64,7 @@ function ProfileForm({ user }: { user: CurrentUser }) {
         <dd className="break-all text-slate-900">{user.email}</dd>
         <dt className="text-slate-500">Vai trò</dt>
         <dd className="text-slate-900">
-          {ROLE_LABELS[user.systemRole]}
+          {roleLabel(user)}
           {!user.canHost && user.systemRole === 'member' && ' (đã bị thu hồi quyền Host)'}
         </dd>
       </dl>
@@ -176,7 +176,7 @@ export function AccountPage() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-brand-900 sm:text-3xl">Tài khoản</h1>
+        <h1 className="text-[28px] font-bold leading-tight">Tài khoản</h1>
         <Button
           variant="secondary"
           onClick={() => logoutMutation.mutate()}

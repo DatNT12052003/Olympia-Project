@@ -11,6 +11,7 @@ import type { z } from 'zod';
 import type { UserPrincipal } from '../../shared/auth/principal';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../shared/errors/app-error';
 import { writeAuditLog } from '../audit/audit-log';
+import { AuthSessionEntity } from '../auth/auth-session.entity';
 import type { AuthService } from '../auth/auth.service';
 import { OrganizationManagerEntity } from '../organizations/organization-manager.entity';
 import type { OrganizationsService } from '../organizations/organizations.service';
@@ -21,7 +22,7 @@ export interface AdminUsersServiceDeps {
   dataSource: DataSource;
   authService: Pick<
     AuthService,
-    'revokeAllSessions' | 'notifySessionsRevoked' | 'sendPasswordReset'
+    'revokeAllSessions' | 'notifySessionsRevoked' | 'sendPasswordReset' | 'sendVerificationEmailTo'
   >;
   organizationsService: Pick<OrganizationsService, 'managedOrganizationIds' | 'exists'>;
 }
@@ -67,6 +68,25 @@ export function createAdminUsersService({
     return user;
   }
 
+  /** Kèm thời điểm hoạt động gần nhất (phiên được dùng gần nhất) cho danh sách quản trị. */
+  async function presentMany(list: UserEntity[]): Promise<AdminUser[]> {
+    if (list.length === 0) return [];
+    const rows = await dataSource
+      .getRepository(AuthSessionEntity)
+      .createQueryBuilder('s')
+      .select('s.userId', 'userId')
+      .addSelect('MAX(s.lastUsedAt)', 'lastActiveAt')
+      .where('s.userId IN (:...ids)', { ids: list.map((u) => u.id) })
+      .groupBy('s.userId')
+      .getRawMany<{ userId: string; lastActiveAt: Date | string }>();
+    const activity = new Map(rows.map((row) => [row.userId, new Date(row.lastActiveAt)]));
+    return list.map((user) => toAdminUser(user, activity.get(user.id) ?? null));
+  }
+
+  async function present(user: UserEntity): Promise<AdminUser> {
+    return (await presentMany([user]))[0]!;
+  }
+
   function assertNotSelf(actor: UserPrincipal, user: UserEntity): void {
     if (actor.userId === user.id) {
       throw new ForbiddenError(
@@ -107,7 +127,7 @@ export function createAdminUsersService({
         .take(filters.pageSize)
         .getManyAndCount();
       return {
-        items: items.map(toAdminUser),
+        items: await presentMany(items),
         page: filters.page,
         pageSize: filters.pageSize,
         total,
@@ -115,7 +135,7 @@ export function createAdminUsersService({
     },
 
     async get(actor: UserPrincipal, userId: string): Promise<AdminUser> {
-      return toAdminUser(await loadInScope(actor, userId));
+      return present(await loadInScope(actor, userId));
     },
 
     /** Khóa tài khoản: thu hồi mọi phiên và ngắt kết nối realtime (BR-AUTH-02). */
@@ -126,7 +146,7 @@ export function createAdminUsersService({
     ): Promise<AdminUser> {
       const user = await loadInScope(actor, userId);
       assertNotSelf(actor, user);
-      if (user.status === 'locked') return toAdminUser(user);
+      if (user.status === 'locked') return present(user);
 
       const event = await dataSource.transaction(async (manager) => {
         user.status = 'locked';
@@ -143,12 +163,12 @@ export function createAdminUsersService({
         return authService.revokeAllSessions(manager, user.id, 'account_locked');
       });
       authService.notifySessionsRevoked(event);
-      return toAdminUser(user);
+      return present(user);
     },
 
     async unlock(actor: UserPrincipal, userId: string): Promise<AdminUser> {
       const user = await loadInScope(actor, userId);
-      if (user.status === 'active') return toAdminUser(user);
+      if (user.status === 'active') return present(user);
       await dataSource.transaction(async (manager) => {
         user.status = 'active';
         user.lockedAt = null;
@@ -161,7 +181,7 @@ export function createAdminUsersService({
           targetId: user.id,
         });
       });
-      return toAdminUser(user);
+      return present(user);
     },
 
     /** Gửi email đặt lại mật khẩu cho người dùng (không để quản trị viên biết mật khẩu). */
@@ -172,6 +192,20 @@ export function createAdminUsersService({
         writeAuditLog(manager, {
           actorUserId: actor.userId,
           action: 'user.password_reset_requested',
+          targetType: 'user',
+          targetId: user.id,
+        }),
+      );
+    },
+
+    /** Gửi lại email xác minh cho tài khoản chưa xác minh. */
+    async resendVerificationEmail(actor: UserPrincipal, userId: string): Promise<void> {
+      const user = await loadInScope(actor, userId);
+      await authService.sendVerificationEmailTo(user);
+      await dataSource.transaction((manager) =>
+        writeAuditLog(manager, {
+          actorUserId: actor.userId,
+          action: 'user.verification_email_sent',
           targetType: 'user',
           targetId: user.id,
         }),
@@ -206,7 +240,7 @@ export function createAdminUsersService({
         changes.organizationId = { from: user.organizationId, to: input.organizationId };
         user.organizationId = input.organizationId;
       }
-      if (Object.keys(changes).length === 0) return toAdminUser(user);
+      if (Object.keys(changes).length === 0) return present(user);
 
       await dataSource.transaction(async (manager) => {
         await manager.save(user);
@@ -222,7 +256,7 @@ export function createAdminUsersService({
           details: changes,
         });
       });
-      return toAdminUser(user);
+      return present(user);
     },
   };
 }

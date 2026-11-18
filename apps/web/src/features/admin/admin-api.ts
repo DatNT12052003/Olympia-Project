@@ -98,6 +98,13 @@ export function useUpdateUser() {
   );
 }
 
+export function useResendVerificationEmail() {
+  return useMutation({
+    mutationFn: (userId: string) =>
+      apiPost(`/admin/users/${userId}/verification-email`, undefined, { auth: true }),
+  });
+}
+
 export function useSendPasswordReset() {
   return useMutation({
     mutationFn: (userId: string) =>

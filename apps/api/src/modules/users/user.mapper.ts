@@ -14,7 +14,7 @@ export function toCurrentUser(user: UserEntity): CurrentUser {
   };
 }
 
-export function toAdminUser(user: UserEntity): AdminUser {
+export function toAdminUser(user: UserEntity, lastActiveAt: Date | null): AdminUser {
   return {
     id: user.id,
     email: user.email,
@@ -27,5 +27,6 @@ export function toAdminUser(user: UserEntity): AdminUser {
     lockedReason: user.lockedReason,
     organizationId: user.organizationId,
     createdAt: user.createdAt.toISOString(),
+    lastActiveAt: lastActiveAt?.toISOString() ?? null,
   };
 }

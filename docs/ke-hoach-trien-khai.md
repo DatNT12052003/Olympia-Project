@@ -3,6 +3,8 @@
 > Kế hoạch triển khai phiên bản đầu của Olympia Online.
 >
 > Tài liệu liên quan: [Đặc tả nghiệp vụ](dac-ta-nghiep-vu-olympia.md) · [Công nghệ sử dụng](cong-nghe-su-dung.md) · [Decision log](decision-log.md)
+>
+> **Thiết kế giao diện:** canvas [Olympia Online – Bộ màn hình](https://claude.ai/artifact/HKmpC4F1bxyket69iq7Yw8). Mỗi màn hình trong canvas ghi rõ giai đoạn (P1…P7); khi làm giao diện của một giai đoạn, đọc các màn tương ứng và màn `Main` (nền tảng giao diện: font, màu, nút, ô nhập) rồi làm theo. Màn chưa có thiết kế thì theo `Main`.
 
 ---
 

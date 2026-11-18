@@ -24,8 +24,12 @@ export class NotFoundError extends AppError {
 }
 
 export class UnauthenticatedError extends AppError {
-  constructor(message = 'Chưa xác thực.', code: string = CommonErrorCode.Unauthenticated) {
-    super(401, code, message);
+  constructor(
+    message = 'Chưa xác thực.',
+    code: string = CommonErrorCode.Unauthenticated,
+    details?: unknown,
+  ) {
+    super(401, code, message, details);
     this.name = 'UnauthenticatedError';
   }
 }

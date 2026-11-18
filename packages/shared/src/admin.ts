@@ -39,6 +39,8 @@ export const adminUserSchema = z.object({
   lockedReason: z.string().nullable(),
   organizationId: z.uuid().nullable(),
   createdAt: z.iso.datetime(),
+  /** Lần gần nhất tài khoản đăng nhập hoặc làm mới phiên; `null` nếu chưa đăng nhập. */
+  lastActiveAt: z.iso.datetime().nullable(),
 });
 export type AdminUser = z.infer<typeof adminUserSchema>;
 

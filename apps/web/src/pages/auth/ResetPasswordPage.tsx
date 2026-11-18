@@ -4,9 +4,9 @@ import { type FormEvent, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { Alert } from '../../components/Alert';
 import { Button } from '../../components/Button';
-import { FormPage } from '../../components/Card';
 import { TextField } from '../../components/TextField';
 import { resetPassword } from '../../features/auth/auth-api';
+import { AuthLayout } from '../../features/auth/AuthLayout';
 import { errorMessage } from '../../lib/api-client';
 
 export function ResetPasswordPage() {
@@ -28,38 +28,43 @@ export function ResetPasswordPage() {
     if (!next.password && !next.confirm) mutation.mutate({ token, password });
   }
 
+  const backTo = { to: '/dang-nhap', label: 'Quay lại đăng nhập' };
+
   if (!token) {
     return (
-      <FormPage title="Đặt lại mật khẩu">
-        <Alert tone="error">Liên kết không hợp lệ. Vui lòng mở lại liên kết trong email.</Alert>
-      </FormPage>
+      <AuthLayout title="Đặt lại mật khẩu" backTo={backTo}>
+        <Alert tone="error">
+          Liên kết không hợp lệ. Vui lòng mở lại liên kết trong email hoặc{' '}
+          <Link to="/quen-mat-khau" className="font-semibold">
+            gửi lại link
+          </Link>
+          .
+        </Alert>
+      </AuthLayout>
     );
   }
 
   return (
-    <FormPage title="Đặt lại mật khẩu">
+    <AuthLayout
+      title="Đặt lại mật khẩu"
+      backTo={backTo}
+      subtitle="Chọn mật khẩu mới cho tài khoản."
+    >
       {mutation.isSuccess ? (
-        <div className="flex flex-col gap-4">
-          <Alert tone="success">
-            Đã đặt lại mật khẩu. Mọi thiết bị đã được đăng xuất; hãy đăng nhập bằng mật khẩu mới.
+        <>
+          <Alert tone="success" title="Đã đặt lại mật khẩu">
+            Mọi thiết bị đã được đăng xuất; hãy đăng nhập bằng mật khẩu mới.
           </Alert>
-          <Link to="/dang-nhap" className="text-sm font-medium text-brand-700 underline">
+          <Link to="/dang-nhap" className="text-sm font-semibold">
             Đăng nhập
           </Link>
-        </div>
+        </>
       ) : (
         <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
-          {mutation.isError && (
-            <Alert tone="error">
-              {errorMessage(mutation.error)}{' '}
-              <Link to="/quen-mat-khau" className="font-medium underline">
-                Gửi lại liên kết
-              </Link>
-            </Alert>
-          )}
           <TextField
             label="Mật khẩu mới"
             type="password"
+            size="lg"
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -70,17 +75,26 @@ export function ResetPasswordPage() {
           <TextField
             label="Nhập lại mật khẩu mới"
             type="password"
+            size="lg"
             autoComplete="new-password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             error={errors.confirm}
             required
           />
-          <Button type="submit" loading={mutation.isPending} loadingText="Đang lưu…">
+          {mutation.isError && (
+            <Alert tone="error">
+              {errorMessage(mutation.error)}{' '}
+              <Link to="/quen-mat-khau" className="font-semibold">
+                Gửi lại link
+              </Link>
+            </Alert>
+          )}
+          <Button type="submit" size="lg" loading={mutation.isPending} loadingText="Đang lưu…">
             Đặt lại mật khẩu
           </Button>
         </form>
       )}
-    </FormPage>
+    </AuthLayout>
   );
 }

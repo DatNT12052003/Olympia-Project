@@ -161,6 +161,33 @@ describe('Khóa / mở khóa tài khoản (BR-AUTH-02)', () => {
     expect(res.text).toBe('');
     expect(ctx.mails.at(-1)?.to).toBe(member.email);
   });
+
+  it('gửi lại email xác minh cho tài khoản chưa xác minh', async () => {
+    const { auth, organizationId } = await managerWithOrganization();
+    const unverified = await createUser(ctx, { organizationId, emailVerified: false });
+    const verified = await createUser(ctx, { organizationId });
+
+    const res = await as(auth).post(`/api/admin/users/${unverified.id}/verification-email`);
+    const again = await as(auth).post(`/api/admin/users/${verified.id}/verification-email`);
+
+    expect(res.status).toBe(202);
+    expect(ctx.mails.at(-1)).toMatchObject({ to: unverified.email });
+    expect(ctx.mails.at(-1)?.text).toContain('/xac-minh-email?token=');
+    expect(again.status).toBe(409);
+  });
+
+  it('trả thời điểm hoạt động gần nhất, null khi chưa đăng nhập', async () => {
+    const { auth, member, organizationId } = await managerWithOrganization();
+    const never = await createUser(ctx, { organizationId });
+    await login(ctx, member.email);
+
+    const list = adminUserListSchema.parse((await as(auth).get('/api/admin/users')).body);
+    const byId = new Map(list.items.map((u) => [u.id, u]));
+
+    expect(byId.get(never.id)?.lastActiveAt).toBeNull();
+    const lastActive = Date.parse(byId.get(member.id)?.lastActiveAt ?? '');
+    expect(Date.now() - lastActive).toBeLessThan(60_000);
+  });
 });
 
 describe('Phân quyền tài khoản (chỉ Super Admin)', () => {

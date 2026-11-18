@@ -1,10 +1,13 @@
 import { SystemPermission } from '@olympia/shared';
 import { Link, NavLink, Outlet } from 'react-router';
+import { Wordmark } from '../components/Card';
 import { userHasPermission, useAuth } from '../features/auth/use-auth';
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium ${
-    isActive ? 'bg-white/15 text-white' : 'text-white/85 hover:bg-white/10 hover:text-white'
+    isActive
+      ? 'bg-stage-800 text-white hover:text-white'
+      : 'text-stage-200 hover:bg-white/5 hover:text-white'
   }`;
 
 function UserNav() {
@@ -20,7 +23,7 @@ function UserNav() {
         </NavLink>
         <Link
           to="/dang-ky"
-          className="inline-flex min-h-11 items-center rounded-lg bg-accent-400 px-3 text-sm font-semibold text-brand-900 hover:bg-accent-500"
+          className="inline-flex min-h-11 items-center rounded-lg bg-accent-400 px-3 text-sm font-semibold text-stage-900 no-underline hover:bg-accent-500 hover:text-stage-900"
         >
           Đăng ký
         </Link>
@@ -45,10 +48,14 @@ function UserNav() {
 export function AppLayout() {
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="bg-brand-900 text-white">
+      <header className="bg-stage-900 text-white">
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:h-16 sm:px-6">
-          <Link to="/" className="shrink-0 text-lg font-bold tracking-tight sm:text-xl">
-            Olympia <span className="text-accent-400">Online</span>
+          <Link
+            to="/"
+            className="shrink-0 hover:no-underline"
+            aria-label="Olympia Online – trang chủ"
+          >
+            <Wordmark className="text-lg sm:text-xl" />
           </Link>
           <UserNav />
         </div>

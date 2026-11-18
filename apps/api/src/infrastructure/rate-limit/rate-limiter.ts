@@ -22,6 +22,8 @@ export interface LimiterOptions {
 export interface Limiter {
   consume(key: string): Promise<number | null>;
   blockedFor(key: string): Promise<number | null>;
+  /** Số lần còn được tính trong cửa sổ hiện tại. */
+  remaining(key: string): Promise<number>;
   reset(key: string): Promise<void>;
 }
 
@@ -45,6 +47,10 @@ function wrap(limiter: RateLimiterAbstract, points: number): Limiter {
     async blockedFor(key) {
       const res = await limiter.get(key);
       return res && res.consumedPoints >= points ? toSeconds(res.msBeforeNext) : null;
+    },
+    async remaining(key) {
+      const res = await limiter.get(key);
+      return Math.max(0, points - (res?.consumedPoints ?? 0));
     },
     async reset(key) {
       await limiter.delete(key);

@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import {
   AuthErrorCode,
+  EMAIL_VERIFICATION_TTL_HOURS,
+  type LoginFailureDetails,
+  PASSWORD_RESET_TTL_MINUTES,
   type CurrentUser,
   type changePasswordRequestSchema,
   type guestSessionRequestSchema,
@@ -37,8 +40,8 @@ import {
 import type { TokenService } from './token-service';
 import { type UserActionPurpose, UserActionTokenEntity } from './user-action-token.entity';
 
-const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
-const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
+const EMAIL_VERIFICATION_TTL_MS = EMAIL_VERIFICATION_TTL_HOURS * 60 * 60 * 1000;
+const PASSWORD_RESET_TTL_MS = PASSWORD_RESET_TTL_MINUTES * 60 * 1000;
 const PG_UNIQUE_VIOLATION = '23505';
 
 export interface RequestMeta {
@@ -83,10 +86,11 @@ export interface AuthServiceDeps {
   now?: () => Date;
 }
 
-function invalidCredentials(): UnauthenticatedError {
+function invalidCredentials(details: LoginFailureDetails): UnauthenticatedError {
   return new UnauthenticatedError(
     'Email hoặc mật khẩu không đúng.',
     AuthErrorCode.InvalidCredentials,
+    details,
   );
 }
 
@@ -319,7 +323,11 @@ export function createAuthService(deps: AuthServiceDeps) {
           loginByEmail.consume(input.email),
           loginByIp.consume(ip),
         ]);
-        throw invalidCredentials();
+        // Cùng một phản hồi dù email có tồn tại hay không (đếm theo email + IP).
+        throw invalidCredentials({
+          remainingAttempts: await loginByEmailIp.remaining(emailIpKey),
+          lockoutMinutes: config.loginFailureWindowMinutes,
+        });
       }
 
       // Chỉ báo khóa khi mật khẩu đúng, để không lộ trạng thái tài khoản cho người đoán mò.
@@ -458,6 +466,14 @@ export function createAuthService(deps: AuthServiceDeps) {
     },
 
     sendPasswordReset,
+
+    /** Quản trị viên gửi lại email xác minh cho người dùng. */
+    async sendVerificationEmailTo(user: UserEntity): Promise<void> {
+      if (user.emailVerifiedAt) {
+        throw new ConflictError('Email đã được xác minh.', AuthErrorCode.EmailAlreadyVerified);
+      }
+      await dataSource.transaction((manager) => sendVerificationEmail(manager, user));
+    },
 
     async resetPassword(input: z.output<typeof resetPasswordRequestSchema>): Promise<void> {
       const passwordHash = await passwords.hash(input.password);

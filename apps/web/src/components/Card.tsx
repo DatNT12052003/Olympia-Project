@@ -2,30 +2,9 @@ import type { ReactNode } from 'react';
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <section
-      className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 ${className}`}
-    >
+    <section className={`rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 ${className}`}>
       {children}
     </section>
-  );
-}
-
-/** Khung trang hẹp cho form (đăng nhập, đăng ký...). */
-export function FormPage({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div className="mx-auto w-full max-w-md">
-      <h1 className="text-2xl font-bold tracking-tight text-brand-900 sm:text-3xl">{title}</h1>
-      {description && <div className="mt-2 text-slate-600">{description}</div>}
-      <Card className="mt-6">{children}</Card>
-    </div>
   );
 }
 
@@ -38,5 +17,36 @@ export function Spinner({ label = 'Đang tải…' }: { label?: string }) {
       />
       {label}
     </p>
+  );
+}
+
+type BadgeTone = 'green' | 'red' | 'amber' | 'slate' | 'brand' | 'orange';
+
+const BADGE_TONES: Record<BadgeTone, string> = {
+  green: 'bg-green-100 text-green-800',
+  red: 'bg-red-100 text-red-800',
+  amber: 'bg-amber-100 text-amber-800',
+  slate: 'bg-slate-200 text-slate-700',
+  brand: 'bg-brand-50 text-brand-700',
+  orange: 'bg-orange-100 text-orange-800',
+};
+
+/** Nhãn trạng thái dạng viên thuốc (màn Main – Nhãn trạng thái). */
+export function Badge({ tone, children }: { tone: BadgeTone; children: ReactNode }) {
+  return (
+    <span
+      className={`inline-flex h-[26px] items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-xs font-semibold ${BADGE_TONES[tone]}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Logo chữ "Olympia Online" dùng trên nền navy. */
+export function Wordmark({ className = 'text-[22px]' }: { className?: string }) {
+  return (
+    <span className={`font-extrabold text-white ${className}`}>
+      Olympia <span className="text-accent-400">Online</span>
+    </span>
   );
 }

@@ -47,6 +47,12 @@ export function createAdminUsersRouter(service: AdminUsersService): Router {
     res.json({ user: await service.unlock(userPrincipal(req), userId) });
   });
 
+  router.post('/:userId/verification-email', async (req, res) => {
+    const { userId } = userIdParams.parse(req.params);
+    await service.resendVerificationEmail(userPrincipal(req), userId);
+    res.status(202).end();
+  });
+
   router.post('/:userId/password-reset', async (req, res) => {
     const { userId } = userIdParams.parse(req.params);
     await service.requestPasswordReset(userPrincipal(req), userId);

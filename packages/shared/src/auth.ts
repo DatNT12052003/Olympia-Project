@@ -27,6 +27,10 @@ export type AuthErrorCode = (typeof AuthErrorCode)[keyof typeof AuthErrorCode];
 export const systemRoleSchema = z.enum(['member', 'manager', 'super_admin']);
 export type SystemRole = z.infer<typeof systemRoleSchema>;
 
+/** Hiệu lực link xác minh email và đặt lại mật khẩu (hiển thị trên giao diện, dùng ở backend). */
+export const EMAIL_VERIFICATION_TTL_HOURS = 24;
+export const PASSWORD_RESET_TTL_MINUTES = 30;
+
 export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 128;
 export const DISPLAY_NAME_MIN_LENGTH = 2;
@@ -99,6 +103,13 @@ export type ResetPasswordRequest = z.input<typeof resetPasswordRequestSchema>;
 export type ChangePasswordRequest = z.input<typeof changePasswordRequestSchema>;
 export type UpdateProfileRequest = z.input<typeof updateProfileRequestSchema>;
 export type GuestSessionRequest = z.input<typeof guestSessionRequestSchema>;
+
+/** `details` của lỗi INVALID_CREDENTIALS: số lần thử còn lại trước khi bị tạm khóa (BR-AUTH-03). */
+export const loginFailureDetailsSchema = z.object({
+  remainingAttempts: z.number().int().min(0),
+  lockoutMinutes: z.number().int().min(1),
+});
+export type LoginFailureDetails = z.infer<typeof loginFailureDetailsSchema>;
 
 export const currentUserSchema = z.object({
   id: z.uuid(),

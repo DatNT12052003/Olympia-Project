@@ -6,7 +6,7 @@ export function HomePage() {
       <section aria-labelledby="home-heading">
         <h1
           id="home-heading"
-          className="text-3xl font-bold tracking-tight text-brand-900 sm:text-4xl lg:text-5xl"
+          className="text-3xl font-bold tracking-tight text-stage-900 sm:text-4xl lg:text-5xl"
         >
           Olympia Online
         </h1>

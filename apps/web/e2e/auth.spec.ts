@@ -70,6 +70,6 @@ test('trang đăng ký không bị tràn ngang', async ({ page }) => {
   await mockBackend(page);
   await page.goto('/dang-ky');
 
-  await expect(page.getByRole('heading', { name: 'Tạo tài khoản' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Đăng ký' })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });

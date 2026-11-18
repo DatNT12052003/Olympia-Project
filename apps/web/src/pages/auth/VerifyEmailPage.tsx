@@ -2,9 +2,10 @@ import { useMutation } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { Alert } from '../../components/Alert';
-import { FormPage, Spinner } from '../../components/Card';
-import { useAuth } from '../../features/auth/use-auth';
+import { Spinner } from '../../components/Card';
 import { verifyEmail } from '../../features/auth/auth-api';
+import { AuthLayout } from '../../features/auth/AuthLayout';
+import { useAuth } from '../../features/auth/use-auth';
 import { errorMessage } from '../../lib/api-client';
 
 export function VerifyEmailPage() {
@@ -24,36 +25,36 @@ export function VerifyEmailPage() {
 
   const nextLink =
     status === 'authenticated' ? (
-      <Link to="/tai-khoan" className="text-sm font-medium text-brand-700 underline">
+      <Link to="/tai-khoan" className="text-sm font-semibold">
         Về trang tài khoản
       </Link>
     ) : (
-      <Link to="/dang-nhap" className="text-sm font-medium text-brand-700 underline">
+      <Link to="/dang-nhap" className="text-sm font-semibold">
         Đăng nhập
       </Link>
     );
 
   return (
-    <FormPage title="Xác minh email">
+    <AuthLayout title="Xác minh email">
       {!token ? (
         <Alert tone="error">Liên kết không hợp lệ. Vui lòng mở lại liên kết trong email.</Alert>
       ) : mutation.isSuccess ? (
-        <div className="flex flex-col gap-4">
-          <Alert tone="success">
-            Email đã được xác minh. Bạn có thể tạo phòng thi và ngân hàng câu hỏi.
+        <>
+          <Alert tone="success" title="Email đã được xác minh">
+            Bạn có thể tạo phòng thi và ngân hàng câu hỏi.
           </Alert>
           {nextLink}
-        </div>
+        </>
       ) : mutation.isError ? (
-        <div className="flex flex-col gap-4">
+        <>
           <Alert tone="error">
             {errorMessage(mutation.error)} Bạn có thể gửi lại email xác minh trong trang tài khoản.
           </Alert>
           {nextLink}
-        </div>
+        </>
       ) : (
         <Spinner label="Đang xác minh email…" />
       )}
-    </FormPage>
+    </AuthLayout>
   );
 }

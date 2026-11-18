@@ -1,3 +1,4 @@
+import { EMAIL_VERIFICATION_TTL_HOURS, PASSWORD_RESET_TTL_MINUTES } from '@olympia/shared';
 import { escapeHtml, type MailMessage } from '../../shared/mail/mailer';
 
 function layout(title: string, intro: string, actionLabel: string, url: string, note: string) {
@@ -23,7 +24,7 @@ export function verificationEmail(to: string, displayName: string, url: string):
       `Chào ${displayName}, hãy xác minh email để bắt đầu tạo phòng thi và ngân hàng câu hỏi.`,
       'Xác minh email',
       url,
-      'Liên kết có hiệu lực trong 24 giờ. Nếu bạn không đăng ký tài khoản, hãy bỏ qua email này.',
+      `Liên kết có hiệu lực trong ${EMAIL_VERIFICATION_TTL_HOURS} giờ. Nếu bạn không đăng ký tài khoản, hãy bỏ qua email này.`,
     ),
   };
 }
@@ -38,7 +39,7 @@ export function passwordResetEmail(to: string, displayName: string, url: string)
       `Chào ${displayName}, chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.`,
       'Đặt lại mật khẩu',
       url,
-      'Liên kết có hiệu lực trong 1 giờ và chỉ dùng được một lần. Nếu bạn không yêu cầu, hãy bỏ qua email này; mật khẩu hiện tại vẫn giữ nguyên.',
+      `Liên kết có hiệu lực trong ${PASSWORD_RESET_TTL_MINUTES} phút và chỉ dùng được một lần. Nếu bạn không yêu cầu, hãy bỏ qua email này; mật khẩu hiện tại vẫn giữ nguyên.`,
     ),
   };
 }

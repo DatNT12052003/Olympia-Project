@@ -1,9 +1,10 @@
 import { type AdminUser, type Organization, organizationRequestSchema } from '@olympia/shared';
-import { type FormEvent, useId, useState } from 'react';
+import { type FormEvent, useState } from 'react';
 import { Alert } from '../../components/Alert';
 import { Button } from '../../components/Button';
 import { Card, Spinner } from '../../components/Card';
-import { TextField } from '../../components/TextField';
+import { CloseIcon } from '../../components/icons';
+import { SelectField, TextField } from '../../components/TextField';
 import {
   useAdminUsers,
   useAssignManager,
@@ -13,6 +14,8 @@ import {
 } from '../../features/admin/admin-api';
 import { useAuth } from '../../features/auth/use-auth';
 import { errorMessage } from '../../lib/api-client';
+
+/** Chưa có màn riêng trong thiết kế: theo nền tảng giao diện (màn Main) và khung quản trị. */
 
 function CreateOrganizationForm() {
   const [name, setName] = useState('');
@@ -28,14 +31,10 @@ function CreateOrganizationForm() {
 
   return (
     <Card>
-      <h2 className="text-lg font-semibold text-slate-900">Thêm tổ chức</h2>
-      <form
-        noValidate
-        onSubmit={onSubmit}
-        className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start"
-      >
+      <h2 className="text-xl font-semibold">Thêm tổ chức</h2>
+      <form noValidate onSubmit={onSubmit} className="mt-4 flex flex-wrap items-start gap-2.5">
         <TextField
-          className="flex-1"
+          className="min-w-0 flex-[1_1_280px]"
           label="Tên tổ chức"
           value={name}
           onChange={(e) => {
@@ -47,18 +46,18 @@ function CreateOrganizationForm() {
         />
         <Button
           type="submit"
-          className="sm:mt-7"
+          className="sm:mt-[30px]"
           loading={create.isPending}
           loadingText="Đang thêm…"
         >
-          Thêm
+          Thêm tổ chức
         </Button>
       </form>
     </Card>
   );
 }
 
-function OrganizationItem({
+function OrganizationCard({
   organization,
   managers,
   canEdit,
@@ -70,38 +69,37 @@ function OrganizationItem({
   const [selected, setSelected] = useState('');
   const assign = useAssignManager();
   const remove = useRemoveManager();
-  const selectId = useId();
   const nameOf = (userId: string) =>
     managers.find((m) => m.id === userId)?.displayName ?? 'Manager';
   const available = managers.filter((m) => !organization.managerIds.includes(m.id));
 
   return (
-    <li className="flex flex-col gap-3 py-4">
+    <li className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5">
       <div>
-        <p className="font-medium text-slate-900">{organization.name}</p>
+        <h3 className="text-lg font-semibold">{organization.name}</h3>
         <p className="text-sm text-slate-600">{organization.memberCount} thành viên</p>
       </div>
       <div>
-        <p className="text-sm font-medium text-slate-800">Manager</p>
+        <p className="text-[13px] font-semibold uppercase tracking-wider text-slate-600">Manager</p>
         {organization.managerIds.length === 0 ? (
-          <p className="text-sm text-slate-500">Chưa có Manager.</p>
+          <p className="mt-1 text-sm text-slate-600">Chưa có Manager.</p>
         ) : (
-          <ul className="mt-1 flex flex-wrap gap-2">
+          <ul className="mt-2 flex flex-wrap gap-2">
             {organization.managerIds.map((userId) => (
               <li
                 key={userId}
-                className="flex items-center gap-1 rounded-full bg-slate-100 py-1 pl-3 pr-1 text-sm"
+                className="flex h-9 items-center gap-1 rounded-full bg-brand-50 pl-3 pr-1 text-sm font-medium text-brand-700"
               >
                 {nameOf(userId)}
                 {canEdit && (
                   <button
                     type="button"
                     aria-label={`Gỡ ${nameOf(userId)} khỏi ${organization.name}`}
-                    className="inline-flex size-8 items-center justify-center rounded-full text-slate-600 hover:bg-slate-200"
+                    className="inline-flex size-8 items-center justify-center rounded-full hover:bg-brand-100"
                     disabled={remove.isPending}
                     onClick={() => remove.mutate({ organizationId: organization.id, userId })}
                   >
-                    ✕
+                    <CloseIcon size={16} />
                   </button>
                 )}
               </li>
@@ -110,25 +108,21 @@ function OrganizationItem({
         )}
       </div>
       {canEdit && available.length > 0 && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <div className="flex-1">
-            <label htmlFor={selectId} className="block text-sm font-medium text-slate-800">
-              Gán Manager
-            </label>
-            <select
-              id={selectId}
-              value={selected}
-              onChange={(e) => setSelected(e.target.value)}
-              className="mt-1.5 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base sm:text-sm"
-            >
-              <option value="">Chọn tài khoản Manager</option>
-              {available.map((manager) => (
-                <option key={manager.id} value={manager.id}>
-                  {manager.displayName} ({manager.email})
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <SelectField
+            className="min-w-0 flex-[1_1_220px]"
+            label={`Gán Manager cho ${organization.name}`}
+            compactLabel
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+          >
+            <option value="">Chọn tài khoản Manager</option>
+            {available.map((manager) => (
+              <option key={manager.id} value={manager.id}>
+                {manager.displayName} ({manager.email})
+              </option>
+            ))}
+          </SelectField>
           <Button
             variant="secondary"
             disabled={!selected}
@@ -164,33 +158,38 @@ export function AdminOrganizationsPage() {
   const managerList = isSuperAdmin ? (managers.data?.items ?? []) : [];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
+      <header>
+        <h1 className="text-[28px] font-bold leading-tight">Tổ chức</h1>
+        <p className="mt-1.5 text-[15px] text-slate-600">
+          {isSuperAdmin
+            ? 'Trường học, câu lạc bộ và Manager phụ trách.'
+            : 'Các tổ chức bạn được gán quản lý.'}
+        </p>
+      </header>
+
       {isSuperAdmin && <CreateOrganizationForm />}
-      <Card>
-        <h2 className="text-lg font-semibold text-slate-900">
-          {isSuperAdmin ? 'Tổ chức' : 'Tổ chức bạn quản lý'}
-        </h2>
-        {organizations.isPending ? (
-          <Spinner label="Đang tải danh sách tổ chức…" />
-        ) : organizations.isError ? (
-          <div className="mt-4">
-            <Alert tone="error">{errorMessage(organizations.error)}</Alert>
-          </div>
-        ) : organizations.data.length === 0 ? (
-          <p className="py-8 text-center text-sm text-slate-600">Chưa có tổ chức nào.</p>
-        ) : (
-          <ul className="divide-y divide-slate-100" aria-label="Danh sách tổ chức">
-            {organizations.data.map((organization) => (
-              <OrganizationItem
-                key={organization.id}
-                organization={organization}
-                managers={managerList}
-                canEdit={isSuperAdmin}
-              />
-            ))}
-          </ul>
-        )}
-      </Card>
+
+      {organizations.isPending ? (
+        <Spinner label="Đang tải danh sách tổ chức…" />
+      ) : organizations.isError ? (
+        <Alert tone="error">{errorMessage(organizations.error)}</Alert>
+      ) : organizations.data.length === 0 ? (
+        <p className="rounded-2xl border border-slate-200 bg-white py-10 text-center text-sm text-slate-600">
+          Chưa có tổ chức nào.
+        </p>
+      ) : (
+        <ul className="grid gap-4 lg:grid-cols-2" aria-label="Danh sách tổ chức">
+          {organizations.data.map((organization) => (
+            <OrganizationCard
+              key={organization.id}
+              organization={organization}
+              managers={managerList}
+              canEdit={isSuperAdmin}
+            />
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

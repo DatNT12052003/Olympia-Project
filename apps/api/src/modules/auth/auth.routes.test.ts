@@ -205,6 +205,23 @@ describe('POST /api/auth/login', () => {
     expect(errorCode(wrongPassword.body)).toBe('INVALID_CREDENTIALS');
   });
 
+  it('báo số lần thử còn lại trước khi bị tạm khóa', async () => {
+    const user = await createUser(ctx);
+
+    const first = await post('/login').send({ email: user.email, password: 'sai' });
+    const second = await post('/login').send({ email: user.email, password: 'sai' });
+
+    // Context test đặt giới hạn 3 lần / 15 phút.
+    expect(apiErrorBodySchema.parse(first.body).error.details).toEqual({
+      remainingAttempts: 2,
+      lockoutMinutes: 15,
+    });
+    expect(apiErrorBodySchema.parse(second.body).error.details).toEqual({
+      remainingAttempts: 1,
+      lockoutMinutes: 15,
+    });
+  });
+
   it('khóa đăng nhập tạm thời sau số lần sai liên tiếp (BR-AUTH-03)', async () => {
     const user = await createUser(ctx);
     for (let i = 0; i < 3; i += 1) {
@@ -316,6 +333,19 @@ describe('POST /api/auth/logout', () => {
 });
 
 describe('Quên / đặt lại mật khẩu', () => {
+  it('link đặt lại mật khẩu có hiệu lực 30 phút', async () => {
+    const user = await createUser(ctx);
+    await post('/forgot-password').send({ email: user.email }).expect(202);
+
+    const token = await ctx.dataSource
+      .getRepository(UserActionTokenEntity)
+      .findOneByOrFail({ userId: user.id, purpose: 'password_reset' });
+    const ttlMinutes = (token.expiresAt.getTime() - token.createdAt.getTime()) / 60_000;
+
+    expect(Math.round(ttlMinutes)).toBe(30);
+    expect(ctx.mails.at(-1)?.text).toContain('30 phút');
+  });
+
   it('luôn trả 202, chỉ gửi email khi tài khoản tồn tại', async () => {
     const user = await createUser(ctx);
     const before = ctx.mails.length;

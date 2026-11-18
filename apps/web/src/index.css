@@ -1,16 +1,37 @@
 @import 'tailwindcss';
 
+/*
+ * Token theo thiết kế: canvas "Olympia Online – Bộ màn hình", màn Main (nền tảng giao diện).
+ * Màn quản lý: nền sáng canvas, nút chính brand-600. Màn thi đấu: nền "sân khấu" stage-900,
+ * điểm nhấn accent-400. Màu chữ/viền/trạng thái dùng thang slate, green, orange, amber, red của
+ * Tailwind (trùng mã màu trong thiết kế).
+ */
 @theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Be Vietnam Pro', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  --color-brand-50: oklch(0.97 0.02 260);
-  --color-brand-100: oklch(0.93 0.04 260);
-  --color-brand-600: oklch(0.48 0.17 262);
-  --color-brand-700: oklch(0.41 0.16 262);
-  --color-brand-900: oklch(0.27 0.1 262);
+  --color-canvas: #f6f7fb;
 
-  --color-accent-400: oklch(0.83 0.15 85);
-  --color-accent-500: oklch(0.77 0.16 75);
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-600: #2547c9;
+  --color-brand-700: #1d3aa6;
+
+  --color-stage-200: #c7d2f0;
+  --color-stage-700: #2a4385;
+  --color-stage-800: #13285e;
+  --color-stage-900: #0a1a3f;
+
+  --color-accent-400: #f5b82e;
+  --color-accent-500: #e0a11a;
+
+  /* Màu 4 vị trí thi, luôn đi kèm số ghế và tên. */
+  --color-seat-1: #f5b82e;
+  --color-seat-2: #38bdf8;
+  --color-seat-3: #f472b6;
+  --color-seat-4: #a3e635;
+
+  /* Ô nhập và nút bo 10px, thẻ bo 16px (rounded-2xl mặc định). */
+  --radius-lg: 0.625rem;
 }
 
 @layer base {
@@ -19,7 +40,11 @@
   }
 
   body {
-    @apply bg-slate-50 font-sans text-slate-900 antialiased;
+    @apply bg-canvas font-sans text-slate-900 antialiased;
+  }
+
+  a {
+    @apply text-brand-600 hover:text-brand-700;
   }
 
   :focus-visible {
