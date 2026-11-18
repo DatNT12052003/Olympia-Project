@@ -77,3 +77,9 @@ export function userPrincipal(req: Request): UserPrincipal {
   if (principal?.kind !== 'user') throw new UnauthenticatedError();
   return principal;
 }
+
+/** Lấy principal (tài khoản hoặc khách) sau `requireAuthenticated` hoặc `requireUser`. */
+export function requestPrincipal(req: Request): Principal {
+  if (!req.principal) throw new UnauthenticatedError();
+  return req.principal;
+}

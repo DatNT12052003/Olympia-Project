@@ -9,6 +9,10 @@ import { createAuthRouter } from './modules/auth/auth.routes';
 import type { AuthService } from './modules/auth/auth.service';
 import { createHealthRouter } from './modules/health/health.routes';
 import type { HealthService } from './modules/health/health.service';
+import type { LimiterFactory } from './infrastructure/rate-limit/rate-limiter';
+import type { LobbyService } from './modules/rooms/lobby.service';
+import { createRoomsRouter } from './modules/rooms/rooms.routes';
+import type { RoomsService } from './modules/rooms/rooms.service';
 import { createOrganizationsRouter } from './modules/organizations/organizations.routes';
 import type { OrganizationsService } from './modules/organizations/organizations.service';
 import { createAdminUsersRouter } from './modules/users/admin-users.routes';
@@ -26,6 +30,9 @@ export interface AppDependencies {
   usersService: UsersService;
   adminUsersService: AdminUsersService;
   organizationsService: OrganizationsService;
+  roomsService: RoomsService;
+  lobbyService: LobbyService;
+  limiters: LimiterFactory;
 }
 
 export function createApp({
@@ -36,6 +43,9 @@ export function createApp({
   usersService,
   adminUsersService,
   organizationsService,
+  roomsService,
+  lobbyService,
+  limiters,
 }: AppDependencies): Express {
   const app = express();
 
@@ -61,6 +71,15 @@ export function createApp({
   api.use('/me', createMeRouter(usersService));
   api.use('/admin/users', createAdminUsersRouter(adminUsersService));
   api.use('/admin/organizations', createOrganizationsRouter(organizationsService));
+  api.use(
+    '/rooms',
+    createRoomsRouter({
+      roomsService,
+      lobbyService,
+      limiters,
+      cookies: { secure: env.COOKIE_SECURE },
+    }),
+  );
   app.use('/api', api);
 
   app.use(notFoundHandler);

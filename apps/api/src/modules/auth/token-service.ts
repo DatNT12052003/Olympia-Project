@@ -10,28 +10,31 @@ const GUEST_SESSION_AUDIENCE = 'olympia:guest-session';
 
 const accessClaimsSchema = z.discriminatedUnion('typ', [
   z.object({ typ: z.literal('user'), sub: z.uuid(), sid: z.uuid() }),
-  z.object({ typ: z.literal('guest'), sub: z.uuid(), name: z.string() }),
+  z.object({ typ: z.literal('guest'), sub: z.uuid(), name: z.string(), rid: z.uuid() }),
 ]);
 
 const guestSessionClaimsSchema = z.object({
   typ: z.literal('guest_session'),
   sub: z.uuid(),
   name: z.string(),
+  rid: z.uuid(),
   exp: z.number(),
 });
 
 export type AccessClaims =
   | { kind: 'user'; userId: string; sessionId: string }
-  | { kind: 'guest'; guestId: string; displayName: string };
+  | { kind: 'guest'; guestId: string; displayName: string; roomId: string };
 
 export interface SignedToken {
   token: string;
   expiresAt: Date;
 }
 
+/** Phiên khách gắn với một phòng (DL-028). */
 export interface GuestSessionClaims {
   guestId: string;
   displayName: string;
+  roomId: string;
   expiresAt: Date;
 }
 
@@ -86,7 +89,7 @@ export function createTokenService({
     signGuestAccess(session: GuestSessionClaims): SignedToken {
       const remaining = Math.floor((session.expiresAt.getTime() - now().getTime()) / 1000);
       return sign(
-        { typ: 'guest', sub: session.guestId, name: session.displayName },
+        { typ: 'guest', sub: session.guestId, name: session.displayName, rid: session.roomId },
         ACCESS_AUDIENCE,
         Math.max(1, Math.min(accessTtlSeconds, remaining)),
       );
@@ -98,16 +101,24 @@ export function createTokenService({
       const claims = parsed.data;
       return claims.typ === 'user'
         ? { kind: 'user', userId: claims.sub, sessionId: claims.sid }
-        : { kind: 'guest', guestId: claims.sub, displayName: claims.name };
+        : { kind: 'guest', guestId: claims.sub, displayName: claims.name, roomId: claims.rid };
     },
 
-    /** Tạo phiên khách mới hoặc đổi tên (giữ hạn cũ khi `expiresAt` được truyền vào). */
-    signGuestSession(guestId: string, displayName: string, expiresAt?: Date): SignedToken {
+    /** Tạo phiên khách mới, hoặc ký lại giữ hạn cũ khi `expiresAt` được truyền vào. */
+    signGuestSession(
+      session: Omit<GuestSessionClaims, 'expiresAt'>,
+      expiresAt?: Date,
+    ): SignedToken {
       const ttl = expiresAt
         ? Math.floor((expiresAt.getTime() - now().getTime()) / 1000)
         : guestSessionTtlHours * 3600;
       return sign(
-        { typ: 'guest_session', sub: guestId, name: displayName },
+        {
+          typ: 'guest_session',
+          sub: session.guestId,
+          name: session.displayName,
+          rid: session.roomId,
+        },
         GUEST_SESSION_AUDIENCE,
         ttl,
       );
@@ -119,6 +130,7 @@ export function createTokenService({
       return {
         guestId: parsed.data.sub,
         displayName: parsed.data.name,
+        roomId: parsed.data.rid,
         expiresAt: new Date(parsed.data.exp * 1000),
       };
     },

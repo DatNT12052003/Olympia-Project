@@ -14,11 +14,16 @@ import { ComingSoonPage } from '../pages/ComingSoonPage';
 import { HomePage } from '../pages/HomePage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { RouteErrorPage } from '../pages/RouteErrorPage';
+import { HostLayout } from '../pages/rooms/HostLayout';
+import { HostRoomsPage } from '../pages/rooms/HostRoomsPage';
+import { JoinRoomPage } from '../pages/rooms/JoinRoomPage';
+import { RoomFormPage } from '../pages/rooms/RoomFormPage';
+import { RoomPage } from '../pages/rooms/RoomPage';
 import { AppLayout } from './AppLayout';
 
 /**
- * Trang tài khoản (đăng nhập, đăng ký...) và trang quản trị có khung riêng theo thiết kế, không
- * dùng header chung của AppLayout.
+ * Trang tài khoản (đăng nhập, đăng ký...), trang quản trị, trang Host và các màn phòng thi có khung
+ * riêng theo thiết kế, không dùng header chung của AppLayout.
  */
 export const routes: RouteObject[] = [
   {
@@ -49,21 +54,24 @@ export const routes: RouteObject[] = [
         ],
       },
       {
+        path: 'phong-thi',
+        element: <RequireAuth permission={SystemPermission.CreateRooms} />,
+        children: [
+          { element: <HostLayout />, children: [{ index: true, element: <HostRoomsPage /> }] },
+          { path: 'tao', element: <RoomFormPage /> },
+          { path: ':roomId/sua', element: <RoomFormPage /> },
+        ],
+      },
+      { path: 'vao-phong', element: <JoinRoomPage /> },
+      { path: 'vao-phong/:code', element: <JoinRoomPage /> },
+      { path: 'phong/:roomId', element: <RoomPage /> },
+      {
         element: <AppLayout />,
         children: [
           { index: true, element: <HomePage /> },
           {
             element: <RequireAuth />,
             children: [{ path: 'tai-khoan', element: <AccountPage /> }],
-          },
-          {
-            path: 'vao-phong',
-            element: (
-              <ComingSoonPage
-                title="Vào phòng bằng mã"
-                description="Tham gia phòng thi bằng mã phòng hoặc link mời, không cần tài khoản, sẽ có khi chức năng phòng thi ra mắt."
-              />
-            ),
           },
           {
             path: 'dieu-khoan',

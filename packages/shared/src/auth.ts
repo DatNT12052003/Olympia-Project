@@ -92,17 +92,11 @@ export const updateProfileRequestSchema = z
   .object({ displayName: displayNameSchema })
   .partial()
   .strict();
-export const guestSessionRequestSchema = z.object({
-  /** Bỏ trống để làm mới phiên khách hiện có (giữ tên cũ). */
-  displayName: displayNameSchema.optional(),
-});
-
 export type RegisterRequest = z.input<typeof registerRequestSchema>;
 export type LoginRequest = z.input<typeof loginRequestSchema>;
 export type ResetPasswordRequest = z.input<typeof resetPasswordRequestSchema>;
 export type ChangePasswordRequest = z.input<typeof changePasswordRequestSchema>;
 export type UpdateProfileRequest = z.input<typeof updateProfileRequestSchema>;
-export type GuestSessionRequest = z.input<typeof guestSessionRequestSchema>;
 
 /** `details` của lỗi INVALID_CREDENTIALS: số lần thử còn lại trước khi bị tạm khóa (BR-AUTH-03). */
 export const loginFailureDetailsSchema = z.object({
@@ -132,9 +126,11 @@ export const authSessionResponseSchema = z.object({
 });
 export type AuthSessionResponse = z.infer<typeof authSessionResponseSchema>;
 
+/** Khách gắn với đúng một phòng (BR-AUTH-05, DL-028). */
 export const guestIdentitySchema = z.object({
   id: z.uuid(),
   displayName: z.string(),
+  roomId: z.uuid(),
 });
 export type GuestIdentity = z.infer<typeof guestIdentitySchema>;
 

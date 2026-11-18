@@ -1,6 +1,4 @@
 import {
-  CSRF_HEADER,
-  guestSessionResponseSchema,
   hasRoomPermission,
   hasSystemPermission,
   type PermissionSubject,
@@ -10,9 +8,11 @@ import {
 } from '@olympia/shared';
 import request from 'supertest';
 import {
+  createOpenRoom,
   createTestContext,
   createUser,
   createUserAndLogin,
+  joinAsGuest,
   type TestContext,
 } from '../../test/test-context';
 
@@ -111,11 +111,8 @@ describe('Backend áp ma trận cho REST (BR-ROLE-05)', () => {
     tokens.superAdmin = (await createUserAndLogin(ctx, { systemRole: 'super_admin' })).accessToken;
     tokens.manager = (await createUserAndLogin(ctx, { systemRole: 'manager' })).accessToken;
     tokens.host = (await createUserAndLogin(ctx)).accessToken;
-    const guest = await request(ctx.app)
-      .post('/api/auth/guest')
-      .set(CSRF_HEADER, '1')
-      .send({ displayName: 'Khách' });
-    tokens.guest = guestSessionResponseSchema.parse(guest.body).accessToken;
+    const { room } = await createOpenRoom(ctx);
+    tokens.guest = (await joinAsGuest(ctx, room.id, 'Khách')).accessToken;
     targetUserId = (await createUser(ctx)).id;
   });
 

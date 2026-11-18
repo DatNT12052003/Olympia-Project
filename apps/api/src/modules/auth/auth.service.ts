@@ -6,7 +6,6 @@ import {
   PASSWORD_RESET_TTL_MINUTES,
   type CurrentUser,
   type changePasswordRequestSchema,
-  type guestSessionRequestSchema,
   type loginRequestSchema,
   type registerRequestSchema,
   type resetPasswordRequestSchema,
@@ -37,7 +36,7 @@ import {
   type SessionsRevokedEvent,
   type SessionsRevokedListener,
 } from './session-store';
-import type { TokenService } from './token-service';
+import type { GuestSessionClaims, TokenService } from './token-service';
 import { type UserActionPurpose, UserActionTokenEntity } from './user-action-token.entity';
 
 const EMAIL_VERIFICATION_TTL_MS = EMAIL_VERIFICATION_TTL_HOURS * 60 * 60 * 1000;
@@ -63,7 +62,7 @@ export interface IssuedGuestSession {
   accessTokenExpiresAt: Date;
   sessionToken: string;
   sessionExpiresAt: Date;
-  guest: { id: string; displayName: string };
+  guest: { id: string; displayName: string; roomId: string };
 }
 
 export interface AuthServiceConfig {
@@ -225,6 +224,21 @@ export function createAuthService(deps: AuthServiceDeps) {
     );
     const url = `${config.appUrl}/dat-lai-mat-khau?token=${encodeURIComponent(token)}`;
     sendMail(passwordResetEmail(user.email, user.displayName, url));
+  }
+
+  function issueGuest(
+    identity: Omit<GuestSessionClaims, 'expiresAt'>,
+    expiresAt?: Date,
+  ): IssuedGuestSession {
+    const session = tokens.signGuestSession(identity, expiresAt);
+    const access = tokens.signGuestAccess({ ...identity, expiresAt: session.expiresAt });
+    return {
+      accessToken: access.token,
+      accessTokenExpiresAt: access.expiresAt,
+      sessionToken: session.token,
+      sessionExpiresAt: session.expiresAt,
+      guest: { id: identity.guestId, displayName: identity.displayName, roomId: identity.roomId },
+    };
   }
 
   async function issueSession(
@@ -524,39 +538,18 @@ export function createAuthService(deps: AuthServiceDeps) {
     },
 
     /**
-     * Tạo hoặc làm mới phiên khách (BR-AUTH-05). Cookie phiên khách còn hạn được dùng lại
-     * để khách kết nối lại với cùng danh tính; truyền tên mới để đổi tên hiển thị.
+     * Cấp phiên khách mới gắn với một phòng (BR-AUTH-05, DL-028). Gọi khi khách vào phòng;
+     * vào phòng khác thì nhận danh tính khách mới.
      */
-    issueGuestSession(
-      existingSessionToken: string | undefined,
-      input: z.output<typeof guestSessionRequestSchema>,
-    ): IssuedGuestSession {
-      let existing: ReturnType<TokenService['verifyGuestSession']> | null = null;
-      if (existingSessionToken) {
-        try {
-          existing = tokens.verifyGuestSession(existingSessionToken);
-        } catch {
-          existing = null;
-        }
-      }
-      const displayName = input.displayName ?? existing?.displayName;
-      if (!displayName) {
-        throw new BadRequestError('Cần nhập tên hiển thị để tham gia với tư cách khách.');
-      }
-      const guestId = existing?.guestId ?? randomUUID();
-      const session = tokens.signGuestSession(guestId, displayName, existing?.expiresAt);
-      const access = tokens.signGuestAccess({
-        guestId,
-        displayName,
-        expiresAt: session.expiresAt,
-      });
-      return {
-        accessToken: access.token,
-        accessTokenExpiresAt: access.expiresAt,
-        sessionToken: session.token,
-        sessionExpiresAt: session.expiresAt,
-        guest: { id: guestId, displayName },
-      };
+    startGuestSession(roomId: string, displayName: string): IssuedGuestSession {
+      return issueGuest({ guestId: randomUUID(), displayName, roomId });
+    },
+
+    /** Làm mới access token từ cookie phiên khách (kết nối lại sau khi tải lại trang). */
+    refreshGuestSession(sessionToken: string | undefined): IssuedGuestSession {
+      if (!sessionToken) throw new UnauthenticatedError('Không có phiên khách.');
+      const existing = tokens.verifyGuestSession(sessionToken);
+      return issueGuest(existing, existing.expiresAt);
     },
 
     /**
@@ -566,7 +559,12 @@ export function createAuthService(deps: AuthServiceDeps) {
     async resolveAccessToken(accessToken: string): Promise<Principal> {
       const claims = tokens.verifyAccess(accessToken);
       if (claims.kind === 'guest') {
-        return { kind: 'guest', guestId: claims.guestId, displayName: claims.displayName };
+        return {
+          kind: 'guest',
+          guestId: claims.guestId,
+          displayName: claims.displayName,
+          roomId: claims.roomId,
+        };
       }
       const user = await dataSource
         .getRepository(UserEntity)

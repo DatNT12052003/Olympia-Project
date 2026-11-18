@@ -123,7 +123,9 @@ export function useCreateOrganization() {
 export function useAssignManager() {
   return useAdminMutation(
     ({ organizationId, userId }: { organizationId: string; userId: string }) =>
-      apiPut(`/admin/organizations/${organizationId}/managers/${userId}`, { auth: true }),
+      apiPut(`/admin/organizations/${organizationId}/managers/${userId}`, undefined, {
+        auth: true,
+      }),
   );
 }
 

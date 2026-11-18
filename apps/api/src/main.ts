@@ -11,6 +11,9 @@ import { createArgon2PasswordHasher } from './modules/auth/password-hasher';
 import type { SessionsRevokedEvent } from './modules/auth/session-store';
 import { createTokenService } from './modules/auth/token-service';
 import { createHealthService } from './modules/health/health.service';
+import { createRoomRealtime } from './modules/realtime/room-realtime';
+import { createRedisPresenceStore } from './modules/rooms/presence-store';
+import { createRoomMaintenance, createRoomsModule } from './modules/rooms/rooms.module';
 import { createOrganizationsService } from './modules/organizations/organizations.service';
 import {
   createRealtimeServer,
@@ -48,6 +51,8 @@ async function main(): Promise<void> {
     if (realtimeRef.io) disconnectRevokedSessions(realtimeRef.io, event);
   };
 
+  const passwords = await createArgon2PasswordHasher();
+  const limiters = createRedisLimiterFactory(redis);
   const authService = createAuthService({
     dataSource,
     tokens: createTokenService({
@@ -55,9 +60,9 @@ async function main(): Promise<void> {
       accessTtlSeconds: env.ACCESS_TOKEN_TTL_SECONDS,
       guestSessionTtlHours: env.GUEST_SESSION_TTL_HOURS,
     }),
-    passwords: await createArgon2PasswordHasher(),
+    passwords,
     mailer: createSmtpMailer(env.SMTP_URL, env.MAIL_FROM),
-    limiters: createRedisLimiterFactory(redis),
+    limiters,
     logger,
     config: {
       appUrl: env.APP_URL,
@@ -68,6 +73,20 @@ async function main(): Promise<void> {
     onSessionsRevoked,
   });
   const organizationsService = createOrganizationsService(dataSource);
+  const presence = createRedisPresenceStore(redis);
+  const rooms = createRoomsModule({
+    dataSource,
+    passwords,
+    presence,
+    limiters,
+    authService,
+    config: {
+      maxActiveRoomsPerHost: env.MAX_ACTIVE_ROOMS_PER_HOST,
+      maxSpectatorsPerRoom: env.MAX_SPECTATORS_PER_ROOM,
+      reconnectGraceSeconds: env.RECONNECT_GRACE_SECONDS,
+      roomIdleMinutes: env.ROOM_IDLE_MINUTES,
+    },
+  });
 
   const app = createApp({
     env,
@@ -77,6 +96,9 @@ async function main(): Promise<void> {
     usersService: createUsersService(dataSource),
     adminUsersService: createAdminUsersService({ dataSource, authService, organizationsService }),
     organizationsService,
+    roomsService: rooms.roomsService,
+    lobbyService: rooms.lobbyService,
+    limiters,
   });
   const httpServer = createServer(app);
   const realtime = createRealtimeServer(httpServer, {
@@ -86,6 +108,17 @@ async function main(): Promise<void> {
     adapter: createAdapter(redisPub, redisSub),
   });
   realtimeRef.io = realtime;
+  const roomRealtime = createRoomRealtime({
+    io: realtime,
+    lobby: rooms.lobbyService,
+    presence,
+    limiters,
+    logger,
+  });
+  rooms.events.attach(roomRealtime.events);
+  realtime.on('connection', (socket) => roomRealtime.register(socket));
+  const maintenance = createRoomMaintenance({ lobby: rooms.lobbyService, presence, logger });
+  maintenance.start();
 
   httpServer.listen(env.PORT, () => {
     logger.info(`API đang chạy tại http://localhost:${env.PORT}`);
@@ -96,6 +129,7 @@ async function main(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info({ signal }, 'Đang tắt server');
+    maintenance.stop();
 
     const forceExit = setTimeout(() => {
       logger.error('Quá thời gian tắt server, buộc thoát');

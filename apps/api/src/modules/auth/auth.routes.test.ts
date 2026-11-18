@@ -9,8 +9,10 @@ import { UserEntity } from '../users/user.entity';
 import {
   createTestContext,
   createUser,
+  createOpenRoom,
   createUserAndLogin,
   extractCookie,
+  joinAsGuest,
   login,
   type TestContext,
   TEST_PASSWORD,
@@ -408,41 +410,35 @@ describe('POST /api/auth/change-password', () => {
   });
 });
 
-describe('POST /api/auth/guest (BR-AUTH-05)', () => {
-  it('cấp phiên khách 24 giờ, giữ danh tính khi làm mới và đổi tên', async () => {
-    const created = await post('/guest').send({ displayName: '  Khách  vui ' });
-    const cookie = extractCookie(created.headers['set-cookie'], 'olympia_guest');
-    const first = guestSessionResponseSchema.parse(created.body);
+describe('Phiên khách (BR-AUTH-05, DL-028)', () => {
+  it('cấp phiên khách 24 giờ gắn với phòng khi vào phòng; làm mới giữ nguyên danh tính', async () => {
+    const { room } = await createOpenRoom(ctx);
+    const joined = await joinAsGuest(ctx, room.id, '  Khách  vui ');
 
     const refreshed = guestSessionResponseSchema.parse(
-      (await post('/guest').set('Cookie', cookie).send({})).body,
-    );
-    const renamed = guestSessionResponseSchema.parse(
-      (await post('/guest').set('Cookie', cookie).send({ displayName: 'Tên mới' })).body,
+      (await post('/guest').set('Cookie', joined.guestCookie).send({})).body,
     );
 
-    expect(first.guest.displayName).toBe('Khách vui');
-    const ttlHours = (Date.parse(first.sessionExpiresAt) - Date.now()) / 3_600_000;
+    expect(joined.guest).toEqual({
+      id: expect.any(String) as string,
+      displayName: 'Khách vui',
+      roomId: room.id,
+    });
+    const ttlHours = (Date.parse(refreshed.sessionExpiresAt) - Date.now()) / 3_600_000;
     expect(ttlHours).toBeGreaterThan(23.9);
     expect(ttlHours).toBeLessThanOrEqual(24);
-    expect(refreshed.guest).toEqual(first.guest);
-    expect(renamed.guest).toEqual({ id: first.guest.id, displayName: 'Tên mới' });
-    // Đổi tên không kéo dài phiên khách.
-    expect(Date.parse(renamed.sessionExpiresAt)).toBeLessThanOrEqual(
-      Date.parse(first.sessionExpiresAt),
-    );
+    expect(refreshed.guest).toEqual(joined.guest);
   });
 
-  it('không có phiên cũ thì phải nhập tên', async () => {
+  it('không có cookie phiên khách thì không làm mới được', async () => {
     const res = await post('/guest').send({});
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(401);
   });
 
   it('access token của khách không dùng được cho chức năng tài khoản', async () => {
-    const { accessToken } = guestSessionResponseSchema.parse(
-      (await post('/guest').send({ displayName: 'Khách' })).body,
-    );
+    const { room } = await createOpenRoom(ctx);
+    const { accessToken } = await joinAsGuest(ctx, room.id, 'Khách');
 
     const me = await request(ctx.app).get('/api/me').set('Authorization', `Bearer ${accessToken}`);
 
@@ -450,14 +446,12 @@ describe('POST /api/auth/guest (BR-AUTH-05)', () => {
   });
 
   it('cookie phiên khách không dùng được như access token', async () => {
-    const created = await post('/guest').send({ displayName: 'Khách' });
-    const sessionToken = extractCookie(created.headers['set-cookie'], 'olympia_guest').split(
-      '=',
-    )[1];
+    const { room } = await createOpenRoom(ctx);
+    const { guestCookie } = await joinAsGuest(ctx, room.id, 'Khách');
 
     const res = await request(ctx.app)
       .get('/api/me')
-      .set('Authorization', `Bearer ${sessionToken}`);
+      .set('Authorization', `Bearer ${guestCookie.split('=')[1]}`);
 
     expect(res.status).toBe(401);
   });

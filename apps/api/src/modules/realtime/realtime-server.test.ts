@@ -24,6 +24,7 @@ const guestPrincipal: Principal = {
   kind: 'guest',
   guestId: '00000000-0000-4000-8000-000000000003',
   displayName: 'Khách',
+  roomId: '00000000-0000-4000-8000-000000000004',
 };
 
 type TestClient = ClientSocket<ServerToClientEvents, ClientToServerEvents>;

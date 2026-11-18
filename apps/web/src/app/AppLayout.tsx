@@ -18,6 +18,9 @@ function UserNav() {
   if (!user) {
     return (
       <nav aria-label="Tài khoản" className="flex items-center gap-1">
+        <NavLink to="/vao-phong" className={navClass}>
+          Vào phòng
+        </NavLink>
         <NavLink to="/dang-nhap" className={navClass}>
           Đăng nhập
         </NavLink>
@@ -33,6 +36,15 @@ function UserNav() {
 
   return (
     <nav aria-label="Tài khoản" className="flex min-w-0 items-center gap-1">
+      {userHasPermission(user, SystemPermission.CreateRooms) ? (
+        <NavLink to="/phong-thi" className={navClass}>
+          Phòng thi
+        </NavLink>
+      ) : (
+        <NavLink to="/vao-phong" className={navClass}>
+          Vào phòng
+        </NavLink>
+      )}
       {userHasPermission(user, SystemPermission.ManageUsers) && (
         <NavLink to="/quan-tri" className={navClass}>
           Quản trị
