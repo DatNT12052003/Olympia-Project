@@ -4,17 +4,47 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Olympia Online is a **greenfield** monorepo. `apps/api` (backend) and `apps/web` (frontend) exist as empty directories; there is no `package.json`, build, lint or test tooling yet, and the folder is not a git repository. When scaffolding, add the real build/lint/test commands to this file once they exist — do not assume commands that haven't been created.
+Olympia Online is an npm-workspaces monorepo. Phase P0 (foundation) of [docs/ke-hoach-trien-khai.md](docs/ke-hoach-trien-khai.md) is done: tooling, dev services, and skeletons for `apps/api`, `apps/web` and `packages/shared` exist; no business features yet.
 
-The product spec is [docs/mo-ta-du-an-olympia.md](docs/mo-ta-du-an-olympia.md) (overview) and [docs/dac-ta-nghiep-vu-olympia.md](docs/dac-ta-nghiep-vu-olympia.md) (detailed business rules with `BR-*` IDs, round rules, state machines, permission matrix, and a decision log for the formerly open questions in section 18). Both are in Vietnamese. Read them before designing any feature. Values marked "mặc định đề xuất" are proposed defaults, not confirmed requirements.
+Docs (all in Vietnamese — read the relevant ones before designing any feature):
 
-## Intended stack
+- [docs/mo-ta-du-an-olympia.md](docs/mo-ta-du-an-olympia.md) (overview) and [docs/dac-ta-nghiep-vu-olympia.md](docs/dac-ta-nghiep-vu-olympia.md) (business rules with `BR-*` IDs, round rules, state machines, permission matrix). Values marked "mặc định đề xuất" are proposed defaults, not confirmed requirements.
+- [docs/cong-nghe-su-dung.md](docs/cong-nghe-su-dung.md) (tech stack), [docs/decision-log.md](docs/decision-log.md) (`DL-*` decisions and their status), [docs/ke-hoach-trien-khai.md](docs/ke-hoach-trien-khai.md) (phases P0–P8).
 
-Defined by the project skills in `.claude/skills/` (also written in Vietnamese — load the relevant one before working in its area):
+## Commands
 
-- **apps/api**: Node.js + Express + TypeScript, PostgreSQL via TypeORM, Redis where justified (cache, rate limit, sessions, queues), Jest + Supertest. Layering: routes → controllers → services/use cases → repositories, with DTO validation at the boundary and centralized error handling.
-- **apps/web**: React (function components + hooks) + TypeScript strict + Vite + Tailwind CSS. React Testing Library for components, Playwright for E2E.
-- Docker for dev/deploy.
+Requires Node.js 24 (`.nvmrc`) and Docker. Run from the repo root unless noted.
+
+```bash
+npm install
+npm run services:up          # PostgreSQL :5440, Redis :6380, LiveKit :7880, Mailpit :1026/:8026 (localhost)
+cp apps/api/.env.example apps/api/.env
+npm run db:migrate           # apply TypeORM migrations (db:migrate:revert in apps/api undoes the last one)
+npm run dev                  # api :3000 (tsx watch) + web :5173 (Vite, proxies /api and /socket.io to :3000)
+
+npm run lint                 # ESLint (type-aware) over the whole repo
+npm run format               # Prettier write; format:check in CI
+npm run typecheck            # tsc in every workspace
+npm test                     # Jest (api) + Vitest (web)
+npm run test:e2e             # Playwright (apps/web/e2e); first run: cd apps/web && npx playwright install chromium
+npm run build                # shared → api → web, in that order
+```
+
+Single test: `npx jest src/app.test.ts -t "404"` in `apps/api`; `npx vitest run src/app/routes.test.tsx -t "404"` in `apps/web`.
+
+## Code layout and conventions
+
+- **packages/shared** (`@olympia/shared`, ESM): Zod schemas and types shared by api and web — API error body, health report, Socket.IO event contracts. Its `exports` map has a `development` condition pointing at `src/*.ts`; dev tools (tsx `--conditions=development`, Vite, Vitest, api/web `tsconfig` `customConditions`) consume source directly, while `npm run build` / production use `dist`. Jest maps it to source via `moduleNameMapper`. After changing shared, rebuild it before building api/web.
+- **apps/api** (CommonJS, `module: nodenext`): `main.ts` wires infrastructure; `app.ts` is a pure `createApp(deps)` factory used by Supertest tests. Business code lives in `src/modules/<module>/` (`*.routes.ts` → `*.controller.ts` → `*.service.ts`); dependencies are passed explicitly (factory functions), not imported singletons. Throw `AppError` subclasses (`src/shared/errors`) for expected errors; `createErrorHandler` turns them into `{ error: { code, message, details? } }` and hides everything else as 500. Env is validated with Zod in `src/config/env.ts` — add new variables there and to `.env.example`. Schema changes only via migrations in `src/infrastructure/database/migrations` (`synchronize` is off); entities go in modules as `*.entity.ts`. Realtime: `createRealtimeServer` takes a `SocketAuthenticator`; until P1 it is `denyAllAuthenticator`. Tests are colocated `*.test.ts`; `tsconfig.jest.json` compiles to CommonJS for Jest.
+- **apps/web** (ESM): `src/app` (routes, layout, query client), `src/pages`, `src/features/<feature>` (components + hooks), `src/lib/api-client.ts` (`apiGet` validates responses with shared Zod schemas and throws `ApiError`; `status === 0` means network error). Server data via TanStack Query. Tailwind v4 with theme tokens (`brand-*`, `accent-*`) in `src/index.css`. Tests use `renderApp(path)` from `src/test/render.tsx` and stub `fetch`. UI text is Vietnamese.
+
+## Stack
+
+Defined by the project skills in `.claude/skills/` (also written in Vietnamese — load the relevant one before working in its area). See [docs/cong-nghe-su-dung.md](docs/cong-nghe-su-dung.md) for the full list.
+
+- **apps/api**: Node.js 24 + Express 5 + TypeScript, PostgreSQL 17 via TypeORM, Redis (ioredis), Socket.IO with Redis adapter, Zod, Pino, Jest + Supertest.
+- **apps/web**: React 19 + TypeScript strict + Vite + Tailwind CSS v4, React Router, TanStack Query. Vitest + React Testing Library, Playwright for E2E.
+- Docker Compose for dev services; GitHub Actions CI (`.github/workflows/ci.yml`).
 
 ## Domain overview (from the spec)
 
