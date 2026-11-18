@@ -75,11 +75,11 @@ Mỗi hạng mục trong một giai đoạn chỉ được coi là xong khi: có
 
 ### P0 – Khởi tạo nền tảng (1–2 tuần)
 
-**Điều kiện bắt đầu:** chốt DL-018 → DL-022.
+**Điều kiện bắt đầu:** chốt DL-018, DL-020, DL-022.
 
 - Monorepo npm workspaces: `apps/api`, `apps/web`, `packages/shared`.
 - TypeScript strict, ESLint, Prettier, cấu hình test (Jest, Vitest, Playwright).
-- Docker Compose: PostgreSQL, Redis, MinIO, LiveKit, Mailpit.
+- Docker Compose: PostgreSQL, Redis, LiveKit, Mailpit (object storage chuyển sang P2, xem DL-025).
 - Khung `apps/api`: Express, phân lớp, xử lý lỗi tập trung, logging Pino, cấu hình theo env, healthcheck, migration TypeORM đầu tiên.
 - Khung `apps/web`: Vite, Tailwind, React Router, TanStack Query, layout responsive cơ bản.
 - Khung realtime: Socket.IO gateway có xác thực, Redis adapter.
@@ -180,9 +180,9 @@ Mỗi hạng mục trong một giai đoạn chỉ được coi là xong khi: có
 
 | Hạn chốt         | Quyết định                                    |
 | ---------------- | --------------------------------------------- |
-| Trước P0         | DL-018 → DL-022 (công nghệ)                   |
-| Trước P1         | DL-001, DL-002, DL-005 (khách, Host, tổ chức) |
-| Trước P2         | DL-006 (kiểm duyệt public)                    |
+| Trước P0         | DL-018, DL-020, DL-022 (đã chốt 2026-11-18)   |
+| Trước P1         | DL-001, DL-002, DL-005 (khách, Host, tổ chức), DL-021 (xác thực) |
+| Trước P2         | DL-006 (kiểm duyệt public), DL-025 (object storage dev) |
 | Trước P4         | DL-003, DL-004, DL-013                         |
 | Trước P6         | DL-007, DL-019                                 |
 | Trước P7         | DL-008                                         |

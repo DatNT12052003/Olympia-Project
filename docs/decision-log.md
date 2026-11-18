@@ -9,7 +9,7 @@
 | Trạng thái       | Ý nghĩa                                                         |
 | ---------------- | --------------------------------------------------------------- |
 | Đã chấp nhận     | Đã chốt, áp dụng khi triển khai.                                |
-| Đề xuất          | Đã có phương án, chờ Product Owner / nhóm kỹ thuật xác nhận.    |
+| Đã chấp nhận          | Đã có phương án, chờ Product Owner / nhóm kỹ thuật xác nhận.    |
 | Chưa quyết định  | Đã xác định cần quyết định, chưa có phương án.                  |
 | Bị thay thế      | Không còn hiệu lực; ghi rõ quyết định thay thế.                 |
 
@@ -19,10 +19,10 @@
 
 | Mã     | Ngày       | Nhóm       | Quyết định                                                                 | Trạng thái      |
 | ------ | ---------- | ---------- | -------------------------------------------------------------------------- | --------------- |
-| DL-001 | 2026-11-18 | Nghiệp vụ  | Cho phép khách (Guest) làm Player và Spectator                             | Đề xuất         |
-| DL-002 | 2026-11-18 | Nghiệp vụ  | Mọi tài khoản đã xác minh email đều là Host                                 | Đề xuất         |
-| DL-003 | 2026-11-18 | Nghiệp vụ  | Luật vòng thi dạng preset, không bám một phiên bản luật chính thức         | Đề xuất         |
-| DL-004 | 2026-11-18 | Nghiệp vụ  | Hỗ trợ cả nhập trên thiết bị và trả lời bằng lời; mặc định nhập trên thiết bị | Đề xuất      |
+| DL-001 | 2026-11-18 | Nghiệp vụ  | Cho phép khách (Guest) làm Player và Spectator                             | Đã chấp nhận         |
+| DL-002 | 2026-11-18 | Nghiệp vụ  | Mọi tài khoản đã xác minh email đều là Host                                 | Đã chấp nhận         |
+| DL-003 | 2026-11-18 | Nghiệp vụ  | Luật vòng thi dạng preset, không bám một phiên bản luật chính thức         | Đã chấp nhận         |
+| DL-004 | 2026-11-18 | Nghiệp vụ  | Hỗ trợ cả nhập trên thiết bị và trả lời bằng lời; mặc định nhập trên thiết bị | Đã chấp nhận      |
 | DL-005 | 2026-11-18 | Nghiệp vụ  | Phạm vi Manager theo Tổ chức                                               | Đề xuất         |
 | DL-006 | 2026-11-18 | Nghiệp vụ  | Bắt buộc kiểm duyệt bộ câu hỏi public trước khi hiển thị                   | Đề xuất         |
 | DL-007 | 2026-11-18 | Nghiệp vụ  | Spectator xem video Host; giới hạn số Spectator mỗi phòng                  | Đề xuất         |
@@ -36,13 +36,14 @@
 | DL-015 | 2026-11-18 | Kiến trúc  | Phân quyền ở backend cho mọi REST và sự kiện realtime                      | Đã chấp nhận    |
 | DL-016 | 2026-11-18 | Công nghệ  | Stack lõi: Node.js/Express/TS, PostgreSQL/TypeORM, Redis, React/Vite/Tailwind | Đã chấp nhận |
 | DL-017 | 2026-11-18 | Công nghệ  | Monorepo dùng npm workspaces                                               | Đã chấp nhận    |
-| DL-018 | 2026-11-18 | Công nghệ  | Realtime dùng Socket.IO + Redis adapter                                    | Đề xuất         |
+| DL-018 | 2026-11-18 | Công nghệ  | Realtime dùng Socket.IO + Redis adapter                                    | Đã chấp nhận    |
 | DL-019 | 2026-11-18 | Công nghệ  | SFU dùng LiveKit tự host                                                   | Đề xuất         |
-| DL-020 | 2026-11-18 | Công nghệ  | Validation dùng Zod, chia sẻ qua `packages/shared`                         | Đề xuất         |
+| DL-020 | 2026-11-18 | Công nghệ  | Validation dùng Zod, chia sẻ qua `packages/shared`                         | Đã chấp nhận    |
 | DL-021 | 2026-11-18 | Công nghệ  | Xác thực JWT ngắn hạn + refresh token xoay vòng trong cookie HttpOnly      | Đề xuất         |
-| DL-022 | 2026-11-18 | Công nghệ  | Test runner frontend dùng Vitest                                           | Đề xuất         |
+| DL-022 | 2026-11-18 | Công nghệ  | Test runner frontend dùng Vitest                                           | Đã chấp nhận    |
 | DL-023 | –          | Hạ tầng    | Nơi triển khai production                                                  | Chưa quyết định |
 | DL-024 | –          | Hạ tầng    | Object storage và CDN production                                           | Chưa quyết định |
+| DL-025 | 2026-11-18 | Hạ tầng    | Object storage S3-compatible cho môi trường dev (thay MinIO)               | Chưa quyết định |
 
 ---
 
@@ -171,6 +172,7 @@ Chi tiết lý do và phương án thay thế: [cong-nghe-su-dung.md](cong-nghe-
 | DL-022 | Vitest cho frontend                                                                         | Jest                        | Điểm T5.                                        |
 | DL-023 | Nơi triển khai production                                                                   | VPS tự quản / cloud / Kubernetes | Điểm T6. Cần thông tin ngân sách và quy mô. |
 | DL-024 | Object storage và CDN production                                                            | –                           | Điểm T7. Phụ thuộc DL-023.                      |
+| DL-025 | Object storage S3-compatible cho dev. MinIO không còn phát hành Docker image cộng đồng (kiểm tra ngày 2026-11-18), nên chưa đưa vào docker-compose ở P0. | SeaweedFS, Garage, LocalStack | Cần chốt trước P2 (upload media). Nên chọn cùng lúc với DL-024. |
 
 ---
 
