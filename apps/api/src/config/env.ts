@@ -50,10 +50,27 @@ const envSchema = z
     RECONNECT_GRACE_SECONDS: z.coerce.number().int().min(5).default(120),
     /** Phòng Open không hoạt động thì tự đóng (BR-ROOM-02, DL-030). */
     ROOM_IDLE_MINUTES: z.coerce.number().int().min(1).default(60),
+
+    /** Object storage S3-compatible cho media câu hỏi (DL-025: SeaweedFS khi dev). */
+    S3_ENDPOINT: z.url().default('http://localhost:8340'),
+    /** Endpoint trình duyệt dùng để upload/tải; bỏ trống = S3_ENDPOINT. */
+    S3_PUBLIC_ENDPOINT: z.url().optional(),
+    S3_REGION: z.string().min(1).default('us-east-1'),
+    S3_BUCKET: z.string().min(3).default('olympia-media'),
+    S3_ACCESS_KEY_ID: z.string().min(1).default('dev'),
+    S3_SECRET_ACCESS_KEY: z.string().min(1).default('dev'),
+    S3_FORCE_PATH_STYLE: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
   })
   .refine((env) => env.NODE_ENV !== 'production' || !env.JWT_SECRET.startsWith('dev-only'), {
     path: ['JWT_SECRET'],
     message: 'Không dùng JWT_SECRET mẫu ở production.',
+  })
+  .refine((env) => env.NODE_ENV !== 'production' || env.S3_SECRET_ACCESS_KEY !== 'dev', {
+    path: ['S3_SECRET_ACCESS_KEY'],
+    message: 'Cần khóa object storage thật ở production.',
   })
   .transform((env) => ({
     ...env,

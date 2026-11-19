@@ -52,9 +52,14 @@ describe('loadEnv', () => {
     ).toThrow(/JWT_SECRET/);
   });
 
+  it('không cho dùng khóa object storage mẫu ở production', () => {
+    expect(() => loadEnv({ ...validEnv, NODE_ENV: 'production' })).toThrow(/S3_SECRET_ACCESS_KEY/);
+  });
+
   it('COOKIE_SECURE mặc định bật ở production, tắt khi dev, ghi đè được', () => {
+    const production = { ...validEnv, NODE_ENV: 'production', S3_SECRET_ACCESS_KEY: 'real-key' };
     expect(loadEnv(validEnv).COOKIE_SECURE).toBe(false);
-    expect(loadEnv({ ...validEnv, NODE_ENV: 'production' }).COOKIE_SECURE).toBe(true);
+    expect(loadEnv(production).COOKIE_SECURE).toBe(true);
     expect(loadEnv({ ...validEnv, COOKIE_SECURE: 'true' }).COOKIE_SECURE).toBe(true);
   });
 });

@@ -100,3 +100,10 @@ export const WifiOffIcon = (props: IconProps) => (
     <path d="M3 3l18 18" />
   </Icon>
 );
+
+export const BookIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M4 5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2z" />
+    <path d="M4 19V5" />
+  </Icon>
+);

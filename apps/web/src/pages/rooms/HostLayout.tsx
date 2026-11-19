@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet } from 'react-router';
 import { Wordmark } from '../../components/Card';
-import { MonitorIcon } from '../../components/icons';
+import { BookIcon, MonitorIcon } from '../../components/icons';
 import { roleLabel } from '../../features/auth/role-labels';
 import { useAuth } from '../../features/auth/use-auth';
 import { initials } from '../../features/rooms/room-format';
@@ -13,8 +13,8 @@ const itemClass = ({ isActive }: { isActive: boolean }) =>
   }`;
 
 /**
- * Khung trang Host theo thiết kế (màn HostDashboard): sidebar navy, nội dung nền sáng. Ngân hàng
- * câu hỏi, Kịch bản, Lịch sử trận sẽ thêm vào sidebar khi có chức năng (P2, P4, P7).
+ * Khung trang Host theo thiết kế (màn HostDashboard, QuestionBank): sidebar navy, nội dung nền
+ * sáng. Kịch bản, Lịch sử trận sẽ thêm vào sidebar khi có chức năng (P4, P7).
  */
 export function HostLayout() {
   const { user } = useAuth();
@@ -30,8 +30,20 @@ export function HostLayout() {
         </Link>
         <div className="flex gap-1 overflow-x-auto lg:flex-col">
           <NavLink to="/phong-thi" end className={itemClass}>
-            <MonitorIcon size={20} className="text-accent-400" />
-            Phòng thi
+            {({ isActive }) => (
+              <>
+                <MonitorIcon size={20} className={isActive ? 'text-accent-400' : ''} />
+                Phòng thi
+              </>
+            )}
+          </NavLink>
+          <NavLink to="/ngan-hang" className={itemClass}>
+            {({ isActive }) => (
+              <>
+                <BookIcon size={20} className={isActive ? 'text-accent-400' : ''} />
+                Ngân hàng câu hỏi
+              </>
+            )}
           </NavLink>
         </div>
         {user && (

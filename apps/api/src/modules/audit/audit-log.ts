@@ -4,7 +4,7 @@ import { AdminAuditLogEntity } from './admin-audit-log.entity';
 export interface AuditEntry {
   actorUserId: string;
   action: string;
-  targetType: 'user' | 'organization';
+  targetType: 'user' | 'organization' | 'question_set_version';
   targetId: string;
   details?: Record<string, unknown>;
 }

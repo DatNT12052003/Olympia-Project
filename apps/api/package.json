@@ -13,6 +13,8 @@
     "user:grant-super-admin": "tsx --conditions=development --env-file-if-exists=.env src/scripts/grant-super-admin.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1158.0",
+    "@aws-sdk/s3-request-presigner": "^3.1158.0",
     "@node-rs/argon2": "^2.2.2",
     "@olympia/shared": "^0.0.0",
     "@socket.io/redis-adapter": "^8.3.0",

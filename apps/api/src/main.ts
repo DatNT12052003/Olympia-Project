@@ -6,11 +6,13 @@ import { loadEnv } from './config/env';
 import { createDataSource } from './infrastructure/database/data-source';
 import { createRedisLimiterFactory } from './infrastructure/rate-limit/rate-limiter';
 import { createRedisClient } from './infrastructure/redis/redis-client';
+import { createS3ObjectStorage } from './infrastructure/storage/object-storage';
 import { createAuthService } from './modules/auth/auth.service';
 import { createArgon2PasswordHasher } from './modules/auth/password-hasher';
 import type { SessionsRevokedEvent } from './modules/auth/session-store';
 import { createTokenService } from './modules/auth/token-service';
 import { createHealthService } from './modules/health/health.service';
+import { createQuestionBankModule } from './modules/question-bank/question-bank.module';
 import { createRoomRealtime } from './modules/realtime/room-realtime';
 import { createRedisPresenceStore } from './modules/rooms/presence-store';
 import { createRoomMaintenance, createRoomsModule } from './modules/rooms/rooms.module';
@@ -40,9 +42,24 @@ async function main(): Promise<void> {
   const redisSub = redis.duplicate();
   await Promise.all([redis.connect(), redisPub.connect(), redisSub.connect()]);
 
+  const storage = createS3ObjectStorage({
+    endpoint: env.S3_ENDPOINT,
+    publicEndpoint: env.S3_PUBLIC_ENDPOINT ?? env.S3_ENDPOINT,
+    region: env.S3_REGION,
+    bucket: env.S3_BUCKET,
+    accessKeyId: env.S3_ACCESS_KEY_ID,
+    secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+    forcePathStyle: env.S3_FORCE_PATH_STYLE,
+  });
+  // Không chặn khởi động khi object storage chưa sẵn sàng: chỉ upload media bị ảnh hưởng.
+  await storage.ensureBucket().catch((error: unknown) => {
+    logger.warn({ err: error }, 'Không kết nối được object storage; upload media sẽ lỗi');
+  });
+
   const healthService = createHealthService({
     database: () => dataSource.query('SELECT 1'),
     redis: () => redis.ping(),
+    storage: () => storage.ping(),
   });
 
   // Realtime server tạo sau HTTP app; sự kiện thu hồi phiên chỉ phát sau khi đã khởi động.
@@ -88,6 +105,8 @@ async function main(): Promise<void> {
     },
   });
 
+  const questionBank = createQuestionBankModule({ dataSource, storage, limiters });
+
   const app = createApp({
     env,
     logger,
@@ -98,6 +117,7 @@ async function main(): Promise<void> {
     organizationsService,
     roomsService: rooms.roomsService,
     lobbyService: rooms.lobbyService,
+    questionBank,
     limiters,
   });
   const httpServer = createServer(app);
