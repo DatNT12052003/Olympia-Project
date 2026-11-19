@@ -84,7 +84,7 @@ PostgreSQL        Redis                 Object Storage (S3)
 | State trận realtime   | Zustand                           |  Đề xuất   | Store nhẹ, nhận snapshot/patch từ socket, bỏ qua bản cũ theo version. |
 | Form                  | React Hook Form + Zod             |  Đề xuất   | Dùng lại schema từ `packages/shared`.                               |
 | Realtime client       | `socket.io-client`                |  Đã chốt   | Theo lựa chọn Socket.IO ở backend.                                  |
-| Video client          | `livekit-client` + `@livekit/components-react` |  Đề xuất   | Theo lựa chọn LiveKit (mục 5).                     |
+| Video client          | `livekit-client` + `@livekit/components-react` |  Đã chốt   | Theo lựa chọn LiveKit (mục 5).                     |
 | Hiệu ứng / âm thanh   | Framer Motion, Howler.js          |  Đề xuất   | Hiệu ứng điểm, công bố kết quả, âm thanh đúng/sai.                  |
 | Icon                  | Lucide                            |  Đề xuất   |                                                                     |
 
@@ -94,7 +94,7 @@ PostgreSQL        Redis                 Object Storage (S3)
 
 | Hạng mục    | Công nghệ                         | Trạng thái | Lý do / ghi chú                                                                                                   |
 | ----------- | --------------------------------- | :--------: | ----------------------------------------------------------------------------------------------------------------- |
-| SFU         | LiveKit (tự host, mã nguồn mở)    |  Đề xuất   | Token cấp quyền theo vai trò: Spectator `canPublish = false` (BR-AV-04); server tắt mic/cam của Player qua API (mục 11.2); tự điều chỉnh chất lượng theo băng thông. Thay thế: mediasoup (linh hoạt hơn nhưng tự xây nhiều hơn), Jitsi. |
+| SFU         | LiveKit (tự host, mã nguồn mở)    |  Đã chốt   | Token cấp quyền theo vai trò: Spectator `canPublish = false` (BR-AV-04); server tắt mic/cam của Player qua API (mục 11.2); tự điều chỉnh chất lượng theo băng thông. Thay thế: mediasoup (linh hoạt hơn nhưng tự xây nhiều hơn), Jitsi. |
 | TURN        | TURN tích hợp của LiveKit hoặc coturn |  Đề xuất   | Cần cho người dùng sau NAT/firewall chặt (mạng trường học, 4G).                                                   |
 
 - Backend cấp token LiveKit sau khi kiểm tra quyền trong phòng; frontend không tự cấp quyền.

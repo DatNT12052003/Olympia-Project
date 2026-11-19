@@ -1,5 +1,6 @@
 import { RoomErrorCode, type RoomRemovedReason } from '@olympia/shared';
 import { Link, useParams } from 'react-router';
+import { AvProvider } from '../../features/av/AvProvider';
 import { HostMatch } from '../../features/match/HostMatch';
 import { MatchResultDialog } from '../../features/match/match-ui';
 import { PlayerMatch } from '../../features/match/PlayerMatch';
@@ -176,9 +177,15 @@ function Room({ roomId }: { roomId: string }) {
     );
   }
 
+  // Video/âm thanh: mọi người đã vào phòng (trừ người chờ duyệt); khán giả chỉ xem/nghe.
+  const inRoom = isHost || (self !== null && self !== undefined && self.status !== 'pending');
+  const canPublish = isHost || (self?.role === 'player' && self.status === 'approved');
+
   return (
     <StagePage>
-      {content}
+      <AvProvider roomId={roomId} enabled={inRoom} canPublish={canPublish}>
+        {content}
+      </AvProvider>
       {match?.status === 'finished' && (
         <MatchResultDialog view={match} onClose={channel.dismissMatch} />
       )}

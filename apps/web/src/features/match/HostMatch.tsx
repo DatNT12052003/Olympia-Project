@@ -5,6 +5,7 @@ import { Button } from '../../components/Button';
 import { ChevronRightIcon, PauseIcon, PlayIcon } from '../../components/icons';
 import { Modal } from '../../components/Modal';
 import { SelectField, TextField } from '../../components/TextField';
+import { AvTile, HostAvPanel, HostLockButtons } from '../av/av-ui';
 import { CONTROL_MODE_LABELS, initials, SEAT_BG } from '../rooms/room-format';
 import {
   AccelerationPanel,
@@ -58,6 +59,46 @@ function playerTag(view: MatchView, player: MatchPlayerView, now: number, grace:
     };
   }
   return { text: 'Chờ lượt', tone: 'bg-stage-900 text-stage-200' };
+}
+
+/** Video (hoặc ảnh đại diện) của người chơi kèm nhãn trạng thái và nút khóa mic/cam (11.2). */
+function PlayerMedia({
+  room,
+  player,
+  tag,
+}: {
+  room: RoomState;
+  player: MatchPlayerView;
+  tag: { text: string; tone: string };
+}) {
+  const member = room.players.find((m) => m.seat === player.seat);
+  const avatar = (
+    <span
+      aria-hidden="true"
+      className={`flex size-12 items-center justify-center rounded-full font-extrabold text-stage-900 ${SEAT_BG[player.seat] ?? ''}`}
+    >
+      {initials(player.displayName)}
+    </span>
+  );
+  return (
+    <>
+      {member ? <AvTile target={{ participantId: member.id }} fallback={avatar} /> : avatar}
+      <span
+        className={`absolute left-2 top-2 rounded-md px-2 py-0.5 text-[11px] font-bold ${tag.tone}`}
+      >
+        {tag.text}
+      </span>
+      {member && (
+        <span className="absolute bottom-1.5 right-1.5">
+          <HostLockButtons
+            roomId={room.room.id}
+            participantId={member.id}
+            name={player.displayName}
+          />
+        </span>
+      )}
+    </>
+  );
 }
 
 /** Trạng thái hiển thị ở đầu màn Host. */
@@ -233,21 +274,11 @@ export function HostMatch({
                   }`}
                 >
                   <div
-                    className={`relative flex h-[110px] items-center justify-center bg-[#1E3A75] ${
+                    className={`relative flex h-[110px] items-center justify-center overflow-hidden bg-[#1E3A75] ${
                       p.connection !== 'online' || p.eliminated ? 'opacity-45' : ''
                     }`}
                   >
-                    <span
-                      aria-hidden="true"
-                      className={`flex size-12 items-center justify-center rounded-full font-extrabold text-stage-900 ${SEAT_BG[p.seat] ?? ''}`}
-                    >
-                      {initials(p.displayName)}
-                    </span>
-                    <span
-                      className={`absolute left-2 top-2 rounded-md px-2 py-0.5 text-[11px] font-bold ${tag.tone}`}
-                    >
-                      {tag.text}
-                    </span>
+                    <PlayerMedia room={room} player={p} tag={tag} />
                   </div>
                   <div className="flex items-center gap-2 px-3 py-2.5">
                     <span
@@ -282,6 +313,7 @@ export function HostMatch({
         <aside className="flex min-w-0 flex-[1_1_300px] flex-col gap-4">
           {view.round.type === 'finish' && <FinishOrder view={view} round={view.round} />}
           <Scoreboard players={view.players} />
+          <HostAvPanel roomId={room.room.id} inMatch />
           <section
             aria-labelledby="log-heading"
             className="flex flex-col gap-2.5 rounded-[18px] bg-stage-800 p-[18px]"

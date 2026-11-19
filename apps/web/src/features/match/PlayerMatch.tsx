@@ -1,4 +1,5 @@
 import type { MatchView, RoomState } from '@olympia/shared';
+import { AvTile, LocalAvControls } from '../av/av-ui';
 import { initials, SEAT_BG, SEAT_BORDER } from '../rooms/room-format';
 import { partLabel, roundTitle, useRemainingMs } from './match-format';
 import { PauseBanner, SeatSquare, TimerBar } from './match-ui';
@@ -85,35 +86,48 @@ export function PlayerMatch({
       <main className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col gap-3.5 px-4 py-4 sm:px-6 lg:flex-row lg:items-start lg:gap-6 lg:py-6">
         <section
           aria-label="Người tham gia"
-          className="grid grid-cols-[2fr_repeat(3,minmax(0,1fr))] gap-1.5 lg:w-72 lg:shrink-0 lg:grid-cols-1 lg:gap-3"
+          className="grid grid-cols-[2fr_repeat(3,minmax(0,1fr))] gap-1.5 lg:w-72 lg:shrink-0 lg:grid-cols-2 lg:gap-2"
         >
-          <div className="flex h-[84px] items-end rounded-[10px] bg-[#1E3A75] p-1.5 text-[11px] font-semibold lg:h-40 lg:items-center lg:justify-center lg:text-sm">
-            Host · {room.host.displayName}
+          <div className="relative flex h-[84px] items-center justify-center overflow-hidden rounded-[10px] bg-[#1E3A75] lg:col-span-2 lg:h-auto lg:aspect-video">
+            <AvTile target={{ role: 'host' }} fallback={null} />
+            <span className="absolute bottom-1 right-1.5 rounded bg-stage-900/80 px-1.5 py-0.5 text-[11px] font-semibold lg:text-xs">
+              Host · {room.host.displayName}
+            </span>
           </div>
           {view.players
             .filter((p) => p.seat !== view.mySeat)
-            .map((p) => (
-              <div
-                key={p.seat}
-                className={`relative flex h-[84px] flex-col items-center justify-center gap-1 rounded-[10px] border-2 bg-[#1E3A75] p-1 text-[10px] lg:h-auto lg:flex-row lg:justify-start lg:gap-2.5 lg:p-2.5 lg:text-sm ${SEAT_BORDER[p.seat] ?? ''} ${
-                  p.connection !== 'online' || p.eliminated || out.includes(p.seat)
-                    ? 'opacity-45'
-                    : ''
-                }`}
-              >
+            .map((p) => {
+              const member = room.players.find((m) => m.seat === p.seat);
+              const avatar = (
                 <span
                   aria-hidden="true"
                   className={`hidden size-9 items-center justify-center rounded-full font-extrabold text-stage-900 lg:flex ${SEAT_BG[p.seat] ?? ''}`}
                 >
                   {initials(p.displayName)}
                 </span>
-                <span className="min-w-0 truncate">
-                  <b>{p.seat}</b>
-                  <span className="hidden lg:inline"> · {p.displayName}</span> · {p.score}
-                  {out.includes(p.seat) && <span className="hidden lg:inline"> · bị loại</span>}
-                </span>
-              </div>
-            ))}
+              );
+              return (
+                <div
+                  key={p.seat}
+                  className={`relative flex h-[84px] items-center justify-center overflow-hidden rounded-[10px] border-2 bg-[#1E3A75] lg:h-auto lg:aspect-[4/3] ${SEAT_BORDER[p.seat] ?? ''} ${
+                    p.connection !== 'online' || p.eliminated || out.includes(p.seat)
+                      ? 'opacity-45'
+                      : ''
+                  }`}
+                >
+                  {member ? (
+                    <AvTile target={{ participantId: member.id }} fallback={avatar} />
+                  ) : (
+                    avatar
+                  )}
+                  <span className="absolute bottom-1 right-1 max-w-[calc(100%-8px)] truncate rounded bg-stage-900/80 px-1 py-0.5 text-[10px] lg:text-xs">
+                    <b>{p.seat}</b>
+                    <span className="hidden lg:inline"> · {p.displayName}</span> · {p.score}
+                    {out.includes(p.seat) && <span className="hidden lg:inline"> · bị loại</span>}
+                  </span>
+                </div>
+              );
+            })}
         </section>
 
         <div className="flex min-w-0 flex-1 flex-col gap-3.5">
@@ -124,6 +138,7 @@ export function PlayerMatch({
             </div>
           )}
           <RoundContent view={view} actions={actions} remaining={remaining} />
+          <LocalAvControls />
         </div>
       </main>
     </>

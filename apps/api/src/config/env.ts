@@ -65,6 +65,14 @@ const envSchema = z
       .enum(['true', 'false'])
       .default('true')
       .transform((value) => value === 'true'),
+
+    /** SFU LiveKit (DL-019). URL WebSocket trình duyệt kết nối tới. */
+    LIVEKIT_URL: z.url({ protocol: /^wss?$/ }).default('ws://localhost:7880'),
+    /** URL API của LiveKit cho server (đổi quyền, ngắt kết nối); bỏ trống = suy từ LIVEKIT_URL. */
+    LIVEKIT_API_URL: z.url({ protocol: /^https?$/ }).optional(),
+    /** Khóa API LiveKit; chế độ `--dev` dùng `devkey` / `secret`. */
+    LIVEKIT_API_KEY: z.string().min(1).default('devkey'),
+    LIVEKIT_API_SECRET: z.string().min(1).default('secret'),
   })
   .refine((env) => env.NODE_ENV !== 'production' || !env.JWT_SECRET.startsWith('dev-only'), {
     path: ['JWT_SECRET'],
@@ -74,9 +82,14 @@ const envSchema = z
     path: ['S3_SECRET_ACCESS_KEY'],
     message: 'Cần khóa object storage thật ở production.',
   })
+  .refine((env) => env.NODE_ENV !== 'production' || env.LIVEKIT_API_SECRET.length >= 32, {
+    path: ['LIVEKIT_API_SECRET'],
+    message: 'Cần khóa LiveKit thật (tối thiểu 32 ký tự) ở production.',
+  })
   .transform((env) => ({
     ...env,
     COOKIE_SECURE: env.COOKIE_SECURE ?? env.NODE_ENV === 'production',
+    LIVEKIT_API_URL: env.LIVEKIT_API_URL ?? env.LIVEKIT_URL.replace(/^ws/, 'http'),
   }));
 
 export type Env = z.infer<typeof envSchema>;

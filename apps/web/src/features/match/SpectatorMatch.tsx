@@ -1,4 +1,5 @@
 import type { MatchView, RoomState } from '@olympia/shared';
+import { AvStatusNote, AvTile, SpeakerToggle } from '../av/av-ui';
 import { initials, SEAT_BG } from '../rooms/room-format';
 import { ReactionBar } from '../rooms/room-stage';
 import {
@@ -74,6 +75,7 @@ export function SpectatorMatch({
   const question = round.question;
   const revealed = question && ['revealed', 'skipped', 'voided'].includes(question.phase);
   const active = view.players.find((p) => seatStatus(view, p.seat)?.active);
+  const activeMember = active ? room.players.find((m) => m.seat === active.seat) : undefined;
   const countdown =
     view.timer && ['answer', 'buzz'].includes(view.timer.purpose) ? remaining : null;
 
@@ -120,7 +122,11 @@ export function SpectatorMatch({
           </div>
           <PlayerCards view={view} />
           <section aria-label="Gửi cảm xúc" className="self-center rounded-2xl bg-stage-800 p-3">
-            <ReactionBar enabled={room.room.reactionsEnabled} onSend={onSendReaction} />
+            <div className="flex flex-wrap items-center justify-center gap-2.5">
+              <ReactionBar enabled={room.room.reactionsEnabled} onSend={onSendReaction} />
+              <SpeakerToggle />
+            </div>
+            <AvStatusNote />
           </section>
         </main>
       </>
@@ -134,16 +140,24 @@ export function SpectatorMatch({
         <div className="flex min-w-0 flex-1 flex-col gap-3.5">
           <PauseBanner view={view} />
           <section aria-label="Người đang trả lời" className="grid grid-cols-2 gap-2">
-            <div className="flex h-24 items-end rounded-xl bg-[#1E3A75] p-2 text-xs font-semibold">
-              Host · {room.host.displayName}
+            <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-[#1E3A75] text-xs font-semibold">
+              <AvTile target={{ role: 'host' }} fallback={null} />
+              <span className="absolute bottom-1.5 left-1.5 rounded bg-stage-900/80 px-1.5 py-0.5">
+                Host · {room.host.displayName}
+              </span>
             </div>
-            <div className="flex h-24 flex-col justify-between rounded-xl border-2 border-accent-400 bg-[#1E3A75] p-2 text-xs font-semibold">
+            <div className="relative flex aspect-[4/3] flex-col justify-between overflow-hidden rounded-xl border-2 border-accent-400 bg-[#1E3A75] p-2 text-xs font-semibold">
               {active ? (
                 <>
-                  <span className="self-start rounded bg-accent-400 px-1.5 py-0.5 text-[10px] font-extrabold uppercase text-stage-900">
+                  {activeMember && (
+                    <AvTile target={{ participantId: activeMember.id }} fallback={null} />
+                  )}
+                  <span className="relative self-start rounded bg-accent-400 px-1.5 py-0.5 text-[10px] font-extrabold uppercase text-stage-900">
                     {seatStatus(view, active.seat)?.text}
                   </span>
-                  {active.seat} · {playerName(view, active.seat)}
+                  <span className="relative self-start rounded bg-stage-900/80 px-1.5 py-0.5">
+                    {active.seat} · {playerName(view, active.seat)}
+                  </span>
                 </>
               ) : (
                 <span className="text-stage-200">{partLabel(view)}</span>
@@ -213,7 +227,11 @@ export function SpectatorMatch({
         <aside className="flex min-w-0 flex-col gap-3.5 lg:w-80 lg:shrink-0">
           <Scoreboard players={view.players} />
           <section aria-label="Gửi cảm xúc" className="rounded-2xl bg-stage-800 p-4">
-            <ReactionBar enabled={room.room.reactionsEnabled} onSend={onSendReaction} />
+            <div className="flex flex-wrap items-center justify-center gap-2.5">
+              <ReactionBar enabled={room.room.reactionsEnabled} onSend={onSendReaction} />
+              <SpeakerToggle />
+            </div>
+            <AvStatusNote />
           </section>
         </aside>
       </main>

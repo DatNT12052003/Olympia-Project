@@ -25,19 +25,19 @@
 | DL-004 | 2026-11-18 | Nghiệp vụ  | Hỗ trợ cả nhập trên thiết bị và trả lời bằng lời; mặc định nhập trên thiết bị | Đã chấp nhận      |
 | DL-005 | 2026-11-18 | Nghiệp vụ  | Phạm vi Manager theo Tổ chức                                               | Đã chấp nhận    |
 | DL-006 | 2026-11-18 | Nghiệp vụ  | Bắt buộc kiểm duyệt bộ câu hỏi public trước khi hiển thị                   | Đề xuất         |
-| DL-007 | 2026-11-18 | Nghiệp vụ  | Spectator xem video Host; giới hạn số Spectator mỗi phòng                  | Đề xuất         |
+| DL-007 | 2026-11-18 | Nghiệp vụ  | Spectator xem video Host; giới hạn số Spectator mỗi phòng                  | Đã chấp nhận    |
 | DL-008 | 2026-11-18 | Nghiệp vụ  | Không ghi hình ở phiên bản đầu; có chính sách dữ liệu cá nhân              | Đề xuất         |
 | DL-009 | 2026-11-18 | Nghiệp vụ  | Chỉ tiêu phi chức năng phiên bản đầu, nghiệm thu bằng kiểm thử tải         | Đề xuất         |
 | DL-010 | 2026-11-18 | Kiến trúc  | Modular monolith với 4 module tách biệt                                    | Đã chấp nhận    |
 | DL-011 | 2026-11-18 | Kiến trúc  | Server là nguồn sự thật cho trạng thái, thời gian và điểm                  | Đã chấp nhận    |
 | DL-012 | 2026-11-18 | Kiến trúc  | Luật vòng thi là plugin của Game Engine                                    | Đã chấp nhận    |
 | DL-013 | 2026-11-19 | Kiến trúc  | Trạng thái trận nóng trong Redis, xử lý tuần tự bằng mutex; lease cho đồng hồ dự phòng | Đã chấp nhận    |
-| DL-014 | 2026-11-18 | Kiến trúc  | Audio/video qua SFU riêng, độc lập kênh trạng thái trận                    | Đề xuất         |
+| DL-014 | 2026-11-18 | Kiến trúc  | Audio/video qua SFU riêng, độc lập kênh trạng thái trận                    | Đã chấp nhận    |
 | DL-015 | 2026-11-18 | Kiến trúc  | Phân quyền ở backend cho mọi REST và sự kiện realtime                      | Đã chấp nhận    |
 | DL-016 | 2026-11-18 | Công nghệ  | Stack lõi: Node.js/Express/TS, PostgreSQL/TypeORM, Redis, React/Vite/Tailwind | Đã chấp nhận |
 | DL-017 | 2026-11-18 | Công nghệ  | Monorepo dùng npm workspaces                                               | Đã chấp nhận    |
 | DL-018 | 2026-11-18 | Công nghệ  | Realtime dùng Socket.IO + Redis adapter                                    | Đã chấp nhận    |
-| DL-019 | 2026-11-18 | Công nghệ  | SFU dùng LiveKit tự host                                                   | Đề xuất         |
+| DL-019 | 2026-11-18 | Công nghệ  | SFU dùng LiveKit tự host                                                   | Đã chấp nhận    |
 | DL-020 | 2026-11-18 | Công nghệ  | Validation dùng Zod, chia sẻ qua `packages/shared`                         | Đã chấp nhận    |
 | DL-021 | 2026-11-18 | Công nghệ  | Xác thực JWT ngắn hạn + refresh token xoay vòng trong cookie HttpOnly      | Đã chấp nhận    |
 | DL-022 | 2026-11-18 | Công nghệ  | Test runner frontend dùng Vitest                                           | Đã chấp nhận    |
@@ -64,6 +64,7 @@
 | DL-043 | 2026-11-19 | Nghiệp vụ  | Về đích: câu theo "Điểm mặc định", sao đặt khi chọn gói, giành quyền 1 lượt | Đã chấp nhận    |
 | DL-044 | 2026-11-19 | Nghiệp vụ  | Câu hỏi phụ dùng câu chưa dùng của trận; không cộng điểm                  | Đã chấp nhận    |
 | DL-045 | 2026-11-19 | Kiến trúc  | Chế độ tự động: plugin tự đi bước kế qua đồng hồ `auto`, engine nghỉ giữa vòng | Đã chấp nhận    |
+| DL-046 | 2026-11-19 | Nghiệp vụ  | Video/voice: kết nối từ sảnh chờ, quyền nói theo engine, khóa mic do server áp | Đã chấp nhận    |
 
 ---
 
@@ -120,6 +121,7 @@
 - **Quyết định:** Spectator xem video Host và Player, chỉ nhận, không phát. Mặc định tối đa 50 Spectator/phòng, Host chỉnh tới mức tối đa hệ thống (mặc định 200).
 - **Hệ quả:** Năng lực SFU phải tính theo số Spectator tối đa.
 - **Liên quan:** 4.1, 11.1, BR-AV-04.
+- **Cập nhật 2026-11-19 (P6):** Product Owner xác nhận như trên (khán giả xem video cả Host và Player).
 
 ### DL-008 – Không ghi hình; có chính sách dữ liệu cá nhân
 
@@ -169,6 +171,7 @@
 
 - **Bối cảnh:** BR-AV-02 yêu cầu sự cố video không làm gián đoạn trận; mesh P2P không chịu nổi 4 Player + Host + nhiều Spectator.
 - **Quyết định:** Dùng SFU riêng (xem DL-019); backend chỉ cấp token theo quyền.
+- **Cập nhật 2026-11-19 (P6):** Product Owner xác nhận; triển khai ở module `av` (DL-046).
 
 ### DL-015 – Phân quyền ở backend
 
@@ -294,6 +297,16 @@
 
 - **Quyết định:** Trận ghi chế độ của phòng lúc bắt đầu (`state.mode`). Sau mỗi đầu vào, engine gọi `plugin.auto()`: plugin làm bước tức thì (chấm câu xác định, chuyển câu) hoặc đặt đồng hồ `auto` để chờ (thời gian đọc câu `autoReadSeconds`, xem đáp án `autoRevealSeconds`, mặc định 3 giây) hoặc `choose` (chờ chọn hàng/gói). Vòng hết câu thì engine đặt đồng hồ `break` (`breakSeconds`) rồi chuyển vòng / câu hỏi phụ / kết thúc. Câu cần người chấm làm `awaitingHost` = true và engine dừng lại tới khi Host chấm. Mọi lệnh Host vẫn dùng được (BR-GAME-06); lệnh vòng thi bỏ bước tự động đang chờ để lập lại.
 - **Hệ quả:** Vẫn một đồng hồ mỗi trận; tạm dừng/tiếp tục giữ nguyên thời gian còn lại của cả bước tự động. Thiết lập mới của kịch bản có giá trị mặc định nên kịch bản cũ vẫn dùng được.
+
+### DL-046 – Video/voice: kết nối, quyền nói và lỗi SFU
+
+- **Bối cảnh:** Mục 11 và DL-014/DL-019. Product Owner xác nhận ngày 2026-11-19: chốt LiveKit; "chỉ người đến lượt được nói" chạy tự động theo engine; "tắt tiếng toàn phòng" là khóa; kết nối video từ sảnh chờ.
+- **Quyết định:**
+  - Module `av` (Realtime Communication) cấp token LiveKit qua `POST /api/rooms/:roomId/av/token` cho Host, Player và khán giả đã được duyệt; người chờ duyệt không có token. Danh tính LiveKit là khóa phòng `u:`/`g:` (một kết nối mỗi danh tính, BR-RC-05); metadata gồm vai trò và id người tham gia để client ghép video với ghế. Khán giả không có quyền phát (BR-AV-04); không ai được gửi data/đổi metadata.
+  - Chính sách của Host (`GET/PATCH /api/rooms/:roomId/av/policy`, quyền "Điều khiển trận đấu"): khóa mic/cam từng Player, tắt tiếng toàn phòng (khóa mic mọi Player tới khi Host mở lại), "chỉ người đến lượt được nói" (khi trận đang chạy, chỉ ghế `activeSeat` của plugin vòng hiện tại được bật mic: phần thi riêng, Player chính/người giành quyền, người giành chuông). Server áp bằng `canPublishSources` của LiveKit và tắt track đang phát; Player không tự bật lại được. Mic Host không bị ảnh hưởng. Khóa hết nguồn thì tắt hẳn quyền phát (danh sách nguồn rỗng với LiveKit nghĩa là "mọi nguồn").
+  - Kết nối ngay từ sảnh chờ để kiểm tra thiết bị (board LobbyPlayer). Không có/không cho phép camera, micro vẫn thi (BR-AV-01). Người bị kick/ban/rời phòng bị ngắt khỏi phòng LiveKit; phòng đóng thì đóng phòng LiveKit.
+  - Lỗi SFU chỉ ghi log, không ném ra luồng phòng/trận (BR-AV-02); client hiện "không kết nối được video" và nút thử lại.
+- **Hệ quả:** Production cần LiveKit có TURN (TLS 443/UDP) cho mạng trường học, 4G, và `LIVEKIT_API_SECRET` thật (≥ 32 ký tự). Không ghi hình (BR-AV-03): không bật egress.
 
 ---
 
