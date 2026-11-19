@@ -25,7 +25,7 @@ import type { RoomEvents } from './room-events';
 import { RoomBanEntity } from './room-ban.entity';
 import { ACTIVE_PARTICIPANT_STATUSES, RoomParticipantEntity } from './room-participant.entity';
 import { RoomEntity } from './room.entity';
-import type { RoomsService } from './rooms.service';
+import type { RoomScripts, RoomsService } from './rooms.service';
 
 export interface LobbyConfig {
   reconnectGraceSeconds: number;
@@ -41,6 +41,7 @@ export interface LobbyServiceDeps {
   /** Cấp phiên khách gắn với phòng (DL-028). */
   startGuestSession: (roomId: string, displayName: string) => IssuedGuestSession;
   closeRoom: RoomsService['closeRoom'];
+  scripts: Pick<RoomScripts, 'names'>;
   config: LobbyConfig;
   now?: () => Date;
 }
@@ -257,6 +258,10 @@ export function createLobbyService(deps: LobbyServiceDeps) {
       (p) => p.role === 'spectator' && p.status === 'approved',
     );
     const hostPresence = presenceMap.get(`u:${room.hostUserId}`);
+    const scriptName =
+      audience === 'host' && room.scriptId
+        ? (await deps.scripts.names([room.scriptId])).get(room.scriptId)
+        : undefined;
 
     return {
       version: room.stateVersion,
@@ -272,6 +277,7 @@ export function createLobbyService(deps: LobbyServiceDeps) {
         allowSpectators: room.allowSpectators,
         maxSpectators: room.maxSpectators,
         reactionsEnabled: room.reactionsEnabled,
+        script: room.scriptId && scriptName ? { id: room.scriptId, name: scriptName } : null,
       },
       host: {
         displayName: host?.displayName ?? 'Host',
@@ -599,13 +605,19 @@ export function createLobbyService(deps: LobbyServiceDeps) {
       events.stateChanged(roomId);
     },
 
-    /** Rời phòng (4.5): khi chưa thi, vị trí được giải phóng. */
+    /**
+     * Rời phòng (4.5): khi chưa thi, vị trí được giải phóng. Người chơi có ghế rời khi đang thi
+     * được xem như mất kết nối (giữ chỗ, BR-RC-01) nên lượt tham gia vẫn còn.
+     */
     async leave(principal: Principal, roomId: string): Promise<void> {
       assertGuestRoom(principal, roomId);
       const participant = await dataSource.transaction(async (manager) => {
-        await lockRoom(manager, roomId);
+        const room = await lockRoom(manager, roomId);
         const found = await findActive(manager, roomId, presenceKey(principal));
         if (!found) return null;
+        if (room.status === 'in_match' && found.role === 'player' && found.seat !== null) {
+          return null;
+        }
         await removeFromRoom(manager, found, 'left');
         await touch(manager, roomId);
         return found;

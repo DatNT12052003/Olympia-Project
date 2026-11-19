@@ -77,6 +77,8 @@ const roomConfigShape = {
   autoApprove: z.boolean(),
   controlMode: controlModeSchema,
   reactionsEnabled: z.boolean(),
+  /** Kịch bản của Host dùng cho trận (mục 6); `null` = chưa chọn. */
+  scriptId: z.uuid().nullable(),
 };
 
 export const createRoomRequestSchema = z
@@ -90,6 +92,7 @@ export const createRoomRequestSchema = z
     autoApprove: z.boolean().default(false),
     controlMode: controlModeSchema.default('manual'),
     reactionsEnabled: z.boolean().default(true),
+    scriptId: z.uuid().nullable().default(null),
     /** `true`: tạo và mở sảnh chờ luôn; `false`: lưu nháp. */
     open: z.boolean().default(false),
   })
@@ -121,6 +124,7 @@ export const hostRoomSchema = z.object({
   autoApprove: z.boolean(),
   controlMode: controlModeSchema,
   reactionsEnabled: z.boolean(),
+  script: z.object({ id: z.uuid(), name: z.string() }).nullable(),
   status: roomStatusSchema,
   code: z.string().nullable(),
   playerCount: z.number().int(),
@@ -207,6 +211,8 @@ export const roomStateSchema = z.object({
     allowSpectators: z.boolean(),
     maxSpectators: z.number().int(),
     reactionsEnabled: z.boolean(),
+    /** Kịch bản đã chọn; chỉ có trong bản cho Host. */
+    script: z.object({ id: z.uuid(), name: z.string() }).nullable(),
   }),
   host: z.object({ displayName: z.string(), connection: connectionStatusSchema }),
   /** Người chơi đã được duyệt (có hoặc chưa có ghế). */

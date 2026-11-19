@@ -4,6 +4,7 @@ import {
   type HostRoom,
   MAX_PLAYERS,
   MIN_PLAYERS,
+  ROUND_TITLES,
   type RoomVisibility,
   type UpdateRoomRequest,
   updateRoomRequestSchema,
@@ -14,7 +15,8 @@ import { Alert } from '../../components/Alert';
 import { Button } from '../../components/Button';
 import { Spinner, Wordmark } from '../../components/Card';
 import { ChevronLeftIcon } from '../../components/icons';
-import { TextField } from '../../components/TextField';
+import { SelectField, TextField } from '../../components/TextField';
+import { useScripts } from '../../features/match/match-api';
 import {
   useCreateRoom,
   useHostRoom,
@@ -39,6 +41,8 @@ interface FormValues {
   password: string;
   removePassword: boolean;
   controlMode: ControlMode;
+  /** `''` = chưa chọn kịch bản. */
+  scriptId: string;
 }
 
 const DEFAULTS: FormValues = {
@@ -54,6 +58,7 @@ const DEFAULTS: FormValues = {
   password: '',
   removePassword: false,
   controlMode: 'manual',
+  scriptId: '',
 };
 
 function fromRoom(room: HostRoom): FormValues {
@@ -70,6 +75,7 @@ function fromRoom(room: HostRoom): FormValues {
     password: '',
     removePassword: false,
     controlMode: room.controlMode,
+    scriptId: room.script?.id ?? '',
   };
 }
 
@@ -164,6 +170,8 @@ function RoomForm({ room }: { room?: HostRoom }) {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<'draft' | 'open' | null>(null);
+  const scripts = useScripts();
+  const selectedScript = scripts.data?.find((s) => s.id === values.scriptId);
 
   const set = <K extends keyof FormValues>(key: K, value: FormValues[K]) =>
     setValues((previous) => ({ ...previous, [key]: value }));
@@ -183,6 +191,7 @@ function RoomForm({ room }: { room?: HostRoom }) {
       maxSpectators: Number.isNaN(maxSpectators) ? 0 : maxSpectators,
       reactionsEnabled: values.reactionsEnabled,
       controlMode: values.controlMode,
+      scriptId: values.scriptId || null,
     };
   }
 
@@ -415,6 +424,33 @@ function RoomForm({ room }: { room?: HostRoom }) {
               />
             </div>
           </fieldset>
+          <div className="flex max-w-[480px] flex-col gap-1.5">
+            <SelectField
+              label="Kịch bản"
+              value={values.scriptId}
+              onChange={(event) => set('scriptId', event.target.value)}
+              error={errors.scriptId}
+              hint={
+                values.controlMode === 'auto'
+                  ? 'Chế độ tự động sẽ có ở phiên bản sau; hiện chỉ bắt đầu được trận ở chế độ Thủ công.'
+                  : selectedScript && selectedScript.supportedPlayers < values.maxPlayers
+                    ? selectedScript.supportedPlayers < MIN_PLAYERS
+                      ? 'Kịch bản chưa đủ câu hỏi để bắt đầu trận.'
+                      : `Kịch bản chỉ đủ câu hỏi cho tối đa ${selectedScript.supportedPlayers} người chơi.`
+                    : undefined
+              }
+            >
+              <option value="">Chưa chọn kịch bản</option>
+              {scripts.data?.map((script) => (
+                <option key={script.id} value={script.id}>
+                  {script.name}
+                </option>
+              ))}
+            </SelectField>
+            <Link to="/kich-ban/moi" className="self-start text-sm font-semibold">
+              Tạo kịch bản mới
+            </Link>
+          </div>
         </Section>
 
         <div className="flex flex-wrap justify-end gap-3">
@@ -476,6 +512,7 @@ function RoomForm({ room }: { room?: HostRoom }) {
               }`,
             ],
             ['Điều khiển', CONTROL_MODE_LABELS[values.controlMode]],
+            ['Kịch bản', selectedScript?.name ?? 'Chưa chọn'],
           ].map(([label, value]) => (
             <li key={label} className="flex justify-between gap-3">
               <span>{label}</span>
@@ -483,11 +520,22 @@ function RoomForm({ room }: { room?: HostRoom }) {
             </li>
           ))}
         </ul>
+        {selectedScript && (
+          <div className="flex flex-col gap-2 border-t border-stage-700 pt-4">
+            <span className="text-[13px] font-semibold text-stage-200">
+              Vòng thi trong kịch bản
+            </span>
+            <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-sm">
+              {selectedScript.rounds.map((round) => (
+                <li key={round}>{ROUND_TITLES[round]}</li>
+              ))}
+            </ol>
+          </div>
+        )}
         <p className="border-t border-stage-700 pt-4 text-[13px] leading-normal text-stage-200">
           {room?.code
             ? `Mã phòng hiện tại: ${room.code}.`
-            : 'Mã phòng và link mời được tạo khi bạn mở phòng.'}{' '}
-          Kịch bản trận (chọn vòng thi) sẽ cấu hình được khi có chức năng Kịch bản.
+            : 'Mã phòng và link mời được tạo khi bạn mở phòng.'}
         </p>
       </aside>
     </div>

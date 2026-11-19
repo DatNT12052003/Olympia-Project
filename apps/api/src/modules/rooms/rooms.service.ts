@@ -2,6 +2,8 @@ import {
   type createRoomRequestSchema,
   type HostRoom,
   type HostRoomList,
+  MatchErrorCode,
+  MIN_PLAYERS,
   RoomErrorCode,
   type RoomPreview,
   type RoomStatus,
@@ -24,13 +26,36 @@ export interface RoomsConfig {
   maxSpectatorsPerRoom: number;
 }
 
+/** Kịch bản của Host do module Kịch bản cung cấp (Room Management không đọc bảng kịch bản). */
+export interface RoomScripts {
+  /** Tên các kịch bản còn hiệu lực theo id. */
+  names(ids: string[]): Promise<Map<string, string>>;
+  /** Ném lỗi nếu kịch bản không thuộc Host hoặc đã xóa. */
+  assertUsable(ownerUserId: string, scriptId: string): Promise<void>;
+}
+
+export const noRoomScripts: RoomScripts = {
+  names: () => Promise.resolve(new Map()),
+  assertUsable: () => Promise.reject(new BadRequestError('Không tìm thấy kịch bản.')),
+};
+
 export interface RoomsServiceDeps {
   dataSource: DataSource;
   passwords: Pick<PasswordHasher, 'hash'>;
   presence: Pick<PresenceStore, 'clearRoom'>;
   events: RoomEvents;
+  scripts: RoomScripts;
   config: RoomsConfig;
   now?: () => Date;
+}
+
+/** Người chơi có ghế khi bắt đầu trận. */
+export interface SeatedPlayer {
+  participantId: string;
+  seat: number;
+  displayName: string;
+  userId: string | null;
+  guestId: string | null;
 }
 
 const ACTIVE_ROOM_STATUSES: RoomStatus[] = ['open', 'in_match'];
@@ -75,7 +100,13 @@ export async function countParticipants(
   return result;
 }
 
-function toHostRoom(room: RoomEntity, hasPassword: boolean, counts?: RoomCounts): HostRoom {
+function toHostRoom(
+  room: RoomEntity,
+  hasPassword: boolean,
+  counts: RoomCounts | undefined,
+  scriptNames: Map<string, string>,
+): HostRoom {
+  const scriptName = room.scriptId ? scriptNames.get(room.scriptId) : undefined;
   return {
     id: room.id,
     name: room.name,
@@ -89,6 +120,7 @@ function toHostRoom(room: RoomEntity, hasPassword: boolean, counts?: RoomCounts)
     autoApprove: room.autoApprove,
     controlMode: room.controlMode,
     reactionsEnabled: room.reactionsEnabled,
+    script: room.scriptId && scriptName ? { id: room.scriptId, name: scriptName } : null,
     status: room.status,
     code: room.code,
     playerCount: counts?.players ?? 0,
@@ -103,7 +135,7 @@ function toHostRoom(room: RoomEntity, hasPassword: boolean, counts?: RoomCounts)
  * công khai (mã phòng, phòng công khai).
  */
 export function createRoomsService(deps: RoomsServiceDeps) {
-  const { dataSource, passwords, presence, events, config } = deps;
+  const { dataSource, passwords, presence, events, scripts, config } = deps;
   const now = deps.now ?? (() => new Date());
 
   function withPasswordQuery(manager: EntityManager) {
@@ -182,7 +214,8 @@ export function createRoomsService(deps: RoomsServiceDeps) {
       .where('r.id = :roomId', { roomId })
       .getOneOrFail();
     const counts = await countParticipants(dataSource.manager, [room.id]);
-    return toHostRoom(room, room.passwordHash !== null, counts.get(room.id));
+    const names = await scripts.names(room.scriptId ? [room.scriptId] : []);
+    return toHostRoom(room, room.passwordHash !== null, counts.get(room.id), names);
   }
 
   async function toPreviews(rooms: RoomEntity[]): Promise<RoomPreview[]> {
@@ -220,6 +253,7 @@ export function createRoomsService(deps: RoomsServiceDeps) {
       input: z.output<typeof createRoomRequestSchema>,
     ): Promise<HostRoom> {
       assertSpectatorLimit(input.maxSpectators);
+      if (input.scriptId) await scripts.assertUsable(actor.userId, input.scriptId);
       const passwordHash = input.password ? await passwords.hash(input.password) : null;
       const roomId = await withCodeRetry(() =>
         dataSource.transaction(async (manager) => {
@@ -236,6 +270,7 @@ export function createRoomsService(deps: RoomsServiceDeps) {
             autoApprove: input.autoApprove,
             controlMode: input.controlMode,
             reactionsEnabled: input.reactionsEnabled,
+            scriptId: input.scriptId,
             status: 'draft',
             lastActivityAt: now(),
           });
@@ -261,13 +296,16 @@ export function createRoomsService(deps: RoomsServiceDeps) {
         dataSource.manager,
         rooms.map((room) => room.id),
       );
+      const names = await scripts.names(
+        rooms.flatMap((room) => (room.scriptId ? [room.scriptId] : [])),
+      );
       const activeCount = await dataSource.getRepository(RoomEntity).countBy({
         hostUserId: actor.userId,
         status: In(ACTIVE_ROOM_STATUSES),
       });
       return {
         items: rooms.map((room) =>
-          toHostRoom(room, room.passwordHash !== null, counts.get(room.id)),
+          toHostRoom(room, room.passwordHash !== null, counts.get(room.id), names),
         ),
         activeCount,
         activeLimit: config.maxActiveRoomsPerHost,
@@ -287,6 +325,7 @@ export function createRoomsService(deps: RoomsServiceDeps) {
       input: z.output<typeof updateRoomRequestSchema>,
     ): Promise<HostRoom> {
       assertSpectatorLimit(input.maxSpectators);
+      if (input.scriptId) await scripts.assertUsable(actor.userId, input.scriptId);
       const passwordHash =
         typeof input.password === 'string' ? await passwords.hash(input.password) : undefined;
 
@@ -421,6 +460,77 @@ export function createRoomsService(deps: RoomsServiceDeps) {
     },
 
     closeRoom,
+
+    /**
+     * Bắt đầu trận (8.3): khóa phòng, kiểm tra Host, phòng đang mở, đủ người chơi có ghế và đã
+     * Sẵn sàng (BR-JOIN-04), rồi chạy `work` của Game Engine trong cùng transaction và chuyển
+     * phòng sang Đang thi (BR-ROOM-01).
+     */
+    async beginMatch<T>(
+      actor: UserPrincipal,
+      roomId: string,
+      options: { skipReady: boolean },
+      work: (manager: EntityManager, room: RoomEntity, players: SeatedPlayer[]) => Promise<T>,
+    ): Promise<T> {
+      const result = await dataSource.transaction(async (manager) => {
+        const room = await loadOwnRoom(manager, actor, roomId);
+        if (room.status !== 'open') {
+          throw new ConflictError(
+            room.status === 'in_match' ? 'Phòng đang có trận diễn ra.' : 'Phòng chưa mở.',
+            room.status === 'in_match'
+              ? MatchErrorCode.AlreadyRunning
+              : RoomErrorCode.InvalidRoomState,
+          );
+        }
+        const seated = await manager.find(RoomParticipantEntity, {
+          where: { roomId, role: 'player', status: 'approved' },
+          order: { seat: 'ASC' },
+        });
+        const players = seated.filter((p) => p.seat !== null && p.seat <= room.maxPlayers);
+        if (players.length < MIN_PLAYERS) {
+          throw new ConflictError(
+            `Cần ít nhất ${MIN_PLAYERS} người chơi đã có vị trí để bắt đầu.`,
+            MatchErrorCode.NotEnoughPlayers,
+          );
+        }
+        if (!options.skipReady && players.some((p) => !p.ready)) {
+          throw new ConflictError('Còn người chơi chưa Sẵn sàng.', MatchErrorCode.PlayersNotReady);
+        }
+        const value = await work(
+          manager,
+          room,
+          players.map((p) => ({
+            participantId: p.id,
+            seat: p.seat!,
+            displayName: p.displayName,
+            userId: p.userId,
+            guestId: p.guestId,
+          })),
+        );
+        await manager.update(
+          RoomEntity,
+          { id: room.id },
+          { status: 'in_match', stateVersion: () => 'state_version + 1', lastActivityAt: now() },
+        );
+        return value;
+      });
+      events.stateChanged(roomId);
+      return result;
+    },
+
+    /** Trận kết thúc: phòng quay về Đang mở để tổ chức trận tiếp theo (BR-ROOM-01). */
+    async finishMatch(manager: EntityManager, roomId: string): Promise<void> {
+      await manager.update(
+        RoomEntity,
+        { id: roomId, status: 'in_match' },
+        { status: 'open', stateVersion: () => 'state_version + 1', lastActivityAt: now() },
+      );
+      await manager.update(
+        RoomParticipantEntity,
+        { roomId, status: In(ACTIVE_PARTICIPANT_STATUSES) },
+        { ready: false },
+      );
+    },
   };
 
   /**
@@ -441,6 +551,8 @@ export function createRoomsService(deps: RoomsServiceDeps) {
           });
       if (!room) return false;
       if (room.status === 'closed') return false;
+      // Hệ thống tự đóng: phòng vừa chuyển sang Đang thi thì bỏ qua (không còn "không hoạt động").
+      if (!actor && room.status !== 'open') return false;
       if (room.status !== 'open') {
         throw new ConflictError(
           'Chỉ đóng được phòng đang mở (không đóng khi đang thi hoặc còn nháp).',

@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet } from 'react-router';
 import { Wordmark } from '../../components/Card';
-import { BookIcon, MonitorIcon } from '../../components/icons';
+import { BookIcon, ListIcon, MonitorIcon } from '../../components/icons';
 import { roleLabel } from '../../features/auth/role-labels';
 import { useAuth } from '../../features/auth/use-auth';
 import { initials } from '../../features/rooms/room-format';
@@ -14,7 +14,7 @@ const itemClass = ({ isActive }: { isActive: boolean }) =>
 
 /**
  * Khung trang Host theo thiết kế (màn HostDashboard, QuestionBank): sidebar navy, nội dung nền
- * sáng. Kịch bản, Lịch sử trận sẽ thêm vào sidebar khi có chức năng (P4, P7).
+ * sáng. Lịch sử trận sẽ thêm vào sidebar khi có chức năng (P7).
  */
 export function HostLayout() {
   const { user } = useAuth();
@@ -42,6 +42,14 @@ export function HostLayout() {
               <>
                 <BookIcon size={20} className={isActive ? 'text-accent-400' : ''} />
                 Ngân hàng câu hỏi
+              </>
+            )}
+          </NavLink>
+          <NavLink to="/kich-ban" className={itemClass}>
+            {({ isActive }) => (
+              <>
+                <ListIcon size={20} className={isActive ? 'text-accent-400' : ''} />
+                Kịch bản
               </>
             )}
           </NavLink>

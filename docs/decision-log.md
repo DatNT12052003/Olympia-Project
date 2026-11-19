@@ -31,7 +31,7 @@
 | DL-010 | 2026-11-18 | Kiến trúc  | Modular monolith với 4 module tách biệt                                    | Đã chấp nhận    |
 | DL-011 | 2026-11-18 | Kiến trúc  | Server là nguồn sự thật cho trạng thái, thời gian và điểm                  | Đã chấp nhận    |
 | DL-012 | 2026-11-18 | Kiến trúc  | Luật vòng thi là plugin của Game Engine                                    | Đã chấp nhận    |
-| DL-013 | 2026-11-18 | Kiến trúc  | Mỗi trận do một instance sở hữu; trạng thái nóng trong Redis               | Đề xuất         |
+| DL-013 | 2026-11-19 | Kiến trúc  | Trạng thái trận nóng trong Redis, xử lý tuần tự bằng mutex; lease cho đồng hồ dự phòng | Đã chấp nhận    |
 | DL-014 | 2026-11-18 | Kiến trúc  | Audio/video qua SFU riêng, độc lập kênh trạng thái trận                    | Đề xuất         |
 | DL-015 | 2026-11-18 | Kiến trúc  | Phân quyền ở backend cho mọi REST và sự kiện realtime                      | Đã chấp nhận    |
 | DL-016 | 2026-11-18 | Công nghệ  | Stack lõi: Node.js/Express/TS, PostgreSQL/TypeORM, Redis, React/Vite/Tailwind | Đã chấp nhận |
@@ -55,6 +55,10 @@
 | DL-034 | 2026-11-18 | Nghiệp vụ  | Câu hỏi = dạng đáp án + media tùy chọn                                     | Đã chấp nhận    |
 | DL-035 | 2026-11-18 | Kiến trúc  | Upload media trực tiếp lên object storage qua presigned URL                | Đã chấp nhận    |
 | DL-036 | 2026-11-18 | Nghiệp vụ  | Màn kiểm duyệt bộ public làm ở P2 (board Moderation ghi P7)                | Đã chấp nhận    |
+| DL-037 | 2026-11-19 | Nghiệp vụ  | Kịch bản là tài nguyên dùng lại của Host; phòng tham chiếu kịch bản        | Đã chấp nhận    |
+| DL-038 | 2026-11-19 | Nghiệp vụ  | P4 chỉ mở vòng Khởi động và chế độ thủ công                                | Đã chấp nhận    |
+| DL-039 | 2026-11-19 | Nghiệp vụ  | Chế độ thủ công: Host xác nhận mọi câu, hệ thống chỉ gợi ý kết quả chấm    | Đã chấp nhận    |
+| DL-040 | 2026-11-19 | Nghiệp vụ  | Câu hỏi của vòng = câu xếp vào nhóm vòng đó trong bộ đề; câu dư là dự phòng | Đã chấp nhận    |
 
 ---
 
@@ -149,12 +153,12 @@
 - **Quyết định:** Mỗi loại vòng là một module cài đặt chung interface của Game Engine (khởi tạo vòng, xử lý hành động, chấm điểm, điều kiện kết thúc). Engine không chứa logic riêng của vòng nào.
 - **Liên quan:** BR-ROUND-01, DL-003.
 
-### DL-013 – Mỗi trận do một instance sở hữu
+### DL-013 – Trạng thái trận trong Redis, xử lý tuần tự, lease cho đồng hồ
 
 - **Bối cảnh:** Cần mở rộng ngang nhưng vẫn xử lý tuần tự hành động trong một trận và khôi phục khi instance lỗi.
-- **Quyết định:** Khóa phân phối trong Redis gán trận cho một instance; instance đó chạy đồng hồ và xử lý tuần tự. Trạng thái ghi vào Redis sau mỗi chuyển trạng thái (kèm version) và lưu bền PostgreSQL ở các mốc. Khi instance chết, instance khác lấy khóa và khôi phục.
-- **Phương án đã cân nhắc:** Mọi instance cùng xử lý với khóa lạc quan trên DB (phức tạp với đồng hồ, dễ xung đột).
-- **Hệ quả:** Cần cơ chế lease/heartbeat cho khóa và kiểm thử khôi phục.
+- **Quyết định (chốt 2026-11-19, thay bản đề xuất "chỉ instance sở hữu xử lý"):** Mọi instance đều nhận hành động của trận; mỗi đầu vào được xử lý tuần tự dưới mutex Redis theo trận (trong instance thêm hàng đợi FIFO để giữ thứ tự nhận). Game Engine là reducer thuần; kết quả (câu trả lời, sổ điểm, nhật ký can thiệp, checkpoint trạng thái) ghi PostgreSQL trong một transaction, rồi ghi trạng thái (kèm version) vào Redis. Đồng hồ: instance xử lý đặt `setTimeout` cục bộ, sự kiện hết giờ idempotent theo id đồng hồ. Instance giữ **lease** của trận (gia hạn định kỳ) quét để kích hoạt đồng hồ quá hạn khi instance đặt nó đã chết và kết thúc trận khi Host mất kết nối quá hạn. Redis mất dữ liệu thì khôi phục từ checkpoint PostgreSQL; khởi động lại thì nạp lại các trận đang diễn ra.
+- **Phương án đã cân nhắc:** (1) Chỉ instance sở hữu xử lý, instance khác chuyển tiếp qua Redis pub/sub – thêm một bước nhảy và cơ chế request/reply; (2) khóa lạc quan trên DB – phức tạp với đồng hồ.
+- **Hệ quả:** Không cần chuyển tiếp lệnh giữa instance. Checkpoint PostgreSQL ghi ở mọi chuyển trạng thái (tần suất thấp), chặt hơn yêu cầu "ở các mốc". Hành động có `actionId` do client sinh; kết quả lưu Redis 10 phút để trả lại khi gửi trùng (BR-GAME-03).
 
 ### DL-014 – Audio/video qua SFU riêng
 
@@ -232,6 +236,28 @@
 
 - **Bối cảnh:** Kế hoạch P2 gồm duyệt/từ chối bộ public; board Moderation trong canvas ghi P7.
 - **Quyết định:** Làm màn "Duyệt nội dung" trong khung Quản trị ngay ở P2, theo board Moderation; bỏ ô "Kịch bản đang dùng" vì kịch bản thuộc P4. Duyệt/từ chối ghi vào `admin_audit_logs`.
+
+### DL-037 – Kịch bản dùng lại được; phòng tham chiếu kịch bản
+
+- **Bối cảnh:** Board CreateRoom cho phòng chọn kịch bản từ danh sách, sidebar có mục "Kịch bản", ScriptBuilder có "Lưu kịch bản" và "Lưu thành mẫu" (BR-SCRIPT-02).
+- **Quyết định:** Kịch bản (`match_scripts`) thuộc Host, dùng lại cho nhiều phòng; phòng lưu `script_id`. Mọi kịch bản đều là "mẫu"; "Lưu thành mẫu" nhân bản thành kịch bản mới. Xóa kịch bản là xóa mềm; phòng đang chọn phải chọn kịch bản khác trước khi bắt đầu. Khi bắt đầu trận, kịch bản và nội dung câu hỏi được chốt vào `matches.script_snapshot` (BR-SCRIPT-03, BR-QB-04).
+- **Hệ quả:** Không có bảng mẫu riêng. Room Management chỉ biết tên kịch bản qua interface của module Kịch bản.
+
+### DL-038 – P4 chỉ mở vòng Khởi động và chế độ thủ công
+
+- **Quyết định:** ScriptBuilder chỉ cho thêm vòng Khởi động; ba vòng còn lại hiện "sắp có" (P5 đăng ký plugin). Phòng ở chế độ Tự động không bắt đầu được trận (lỗi `MATCH_AUTO_MODE_UNSUPPORTED`) cho tới P5.
+- **Hệ quả:** Schema kịch bản vẫn là union theo loại vòng; thêm vòng không cần sửa engine.
+
+### DL-039 – Chế độ thủ công: Host xác nhận mọi câu
+
+- **Bối cảnh:** Board HostControl có "hệ thống chấm: Đúng" và nút "Xác nhận Đúng"/"Sai"; 8.3 liệt kê "xác nhận đúng/sai" là việc của Host.
+- **Quyết định:** Ở chế độ thủ công, câu trả lời được chấm tự động làm gợi ý; điểm chỉ thay đổi khi Host xác nhận. Xác nhận đồng thời công bố đáp án (gộp các trạng thái Đã chấm → Đã công bố của 8.2). Hết giờ không trả lời ở phần thi riêng tính là bỏ qua (0 điểm); ở phần thi chung, Host chấm Sai thì bị trừ điểm theo luật.
+- **Hệ quả:** Chế độ tự động (P5) dùng lại gợi ý để chấm luôn câu có đáp án xác định.
+
+### DL-040 – Câu hỏi của vòng lấy theo nhóm vòng trong bộ đề
+
+- **Quyết định:** Vòng dùng các câu được xếp vào nhóm của vòng đó trong bộ đề (5.3), theo thứ tự: phần thi riêng chia lần lượt cho từng ghế, sau đó phần thi chung; câu dư làm câu dự phòng cho "Hủy câu" (8.5). Bộ public được chọn mới phải đang được duyệt; phiên bản đã chọn trước vẫn dùng được khi bị thay/gỡ (BR-QB-07).
+- **Hệ quả:** Kiểm tra đủ câu (BR-SCRIPT-01) theo số người chơi thật khi bắt đầu trận; ScriptBuilder báo số người chơi tối đa nguồn đủ câu.
 
 ---
 

@@ -1,4 +1,11 @@
 import { AdminAuditLogEntity } from '../../modules/audit/admin-audit-log.entity';
+import { MatchPlayerEntity } from '../../modules/game/match-player.entity';
+import {
+  MatchAnswerEntity,
+  MatchInterventionEntity,
+  MatchScoreEventEntity,
+} from '../../modules/game/match-records.entity';
+import { MatchEntity } from '../../modules/game/match.entity';
 import { MediaAssetEntity } from '../../modules/media/media-asset.entity';
 import { QuestionSetItemEntity } from '../../modules/question-bank/question-set-item.entity';
 import { QuestionSetVersionEntity } from '../../modules/question-bank/question-set-version.entity';
@@ -12,6 +19,7 @@ import { OrganizationEntity } from '../../modules/organizations/organization.ent
 import { RoomBanEntity } from '../../modules/rooms/room-ban.entity';
 import { RoomParticipantEntity } from '../../modules/rooms/room-participant.entity';
 import { RoomEntity } from '../../modules/rooms/room.entity';
+import { MatchScriptEntity } from '../../modules/scripts/match-script.entity';
 import { UserEntity } from '../../modules/users/user.entity';
 
 /** Khai báo tường minh (không dùng glob) để tsx, Jest và bản build nạp giống nhau. */
@@ -31,4 +39,10 @@ export const entities = [
   QuestionSetEntity,
   QuestionSetItemEntity,
   QuestionSetVersionEntity,
+  MatchScriptEntity,
+  MatchEntity,
+  MatchPlayerEntity,
+  MatchAnswerEntity,
+  MatchScoreEventEntity,
+  MatchInterventionEntity,
 ];

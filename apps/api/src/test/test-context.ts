@@ -22,6 +22,8 @@ import { type AuthService, createAuthService } from '../modules/auth/auth.servic
 import { createArgon2PasswordHasher, type PasswordHasher } from '../modules/auth/password-hasher';
 import type { SessionsRevokedEvent } from '../modules/auth/session-store';
 import { createTokenService } from '../modules/auth/token-service';
+import { createGameModule, type GameModule } from '../modules/game/game.module';
+import { createRedisMatchStore } from '../modules/game/match-store';
 import { createHealthService, type DependencyCheck } from '../modules/health/health.service';
 import {
   createQuestionBankModule,
@@ -33,6 +35,7 @@ import type { RoomEvents } from '../modules/rooms/room-events';
 import { createRoomsModule } from '../modules/rooms/rooms.module';
 import type { RoomsService } from '../modules/rooms/rooms.service';
 import { createOrganizationsService } from '../modules/organizations/organizations.service';
+import { createScriptsService, type ScriptsService } from '../modules/scripts/scripts.service';
 import { createAdminUsersService } from '../modules/users/admin-users.service';
 import { UserEntity } from '../modules/users/user.entity';
 import { createUsersService } from '../modules/users/users.service';
@@ -57,6 +60,10 @@ export interface TestContext {
   /** Object storage trong bộ nhớ: đặt nội dung tệp "đã upload" bằng `put`. */
   storage: MemoryObjectStorage;
   questionBank: QuestionBankModule;
+  scriptsService: ScriptsService;
+  game: GameModule;
+  /** Redis của test (để realtime test dùng chung). */
+  redis: Redis;
   /** Gắn bộ phát sự kiện phòng (ví dụ realtime server trong test). */
   attachRoomEvents(events: RoomEvents): void;
   close(): Promise<void>;
@@ -71,6 +78,9 @@ export interface TestContextOptions {
   now?: () => Date;
   maxActiveRoomsPerHost?: number;
   reconnectGraceSeconds?: number;
+  /** Đồng hồ của Game Engine (epoch ms). */
+  matchNow?: () => number;
+  hostReconnectMinutes?: number;
 }
 
 /** Redis riêng cho test (DB 15); mỗi context dùng tiền tố khóa riêng. */
@@ -119,13 +129,25 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
   const organizationsService = createOrganizationsService(dataSource);
   const redis = new Redis(testRedisUrl(), { lazyConnect: true, maxRetriesPerRequest: 1 });
   await redis.connect();
-  const presence = createRedisPresenceStore(redis, `test:${randomUUID()}:`);
+  const keyPrefix = `test:${randomUUID()}:`;
+  const presence = createRedisPresenceStore(redis, keyPrefix);
+  const storage = createMemoryObjectStorage();
+  const questionBank = createQuestionBankModule({
+    dataSource,
+    storage,
+    limiters: memoryLimiterFactory,
+  });
+  const scriptsService = createScriptsService({
+    dataSource,
+    sources: questionBank.questionSources,
+  });
   const rooms = createRoomsModule({
     dataSource,
     passwords: await sharedHasher,
     presence,
     limiters: memoryLimiterFactory,
     authService,
+    scripts: scriptsService.roomScripts,
     config: {
       maxActiveRoomsPerHost: options.maxActiveRoomsPerHost ?? 5,
       maxSpectatorsPerRoom: 200,
@@ -135,11 +157,18 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     ...(options.now ? { now: options.now } : {}),
   });
 
-  const storage = createMemoryObjectStorage();
-  const questionBank = createQuestionBankModule({
+  const game = createGameModule({
     dataSource,
-    storage,
-    limiters: memoryLimiterFactory,
+    store: createRedisMatchStore(redis, keyPrefix),
+    presence,
+    media: questionBank.mediaService,
+    rooms: rooms.roomsService,
+    roomEvents: rooms.events,
+    scripts: scriptsService,
+    sources: questionBank.questionSources,
+    logger: silentLogger,
+    hostReconnectMinutes: options.hostReconnectMinutes ?? 10,
+    ...(options.matchNow ? { now: options.matchNow } : {}),
   });
 
   const app = createApp({
@@ -153,6 +182,8 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     roomsService: rooms.roomsService,
     lobbyService: rooms.lobbyService,
     questionBank,
+    scriptsService,
+    matchService: game.matchService,
     limiters: memoryLimiterFactory,
   });
 
@@ -167,8 +198,12 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     presence,
     storage,
     questionBank,
+    scriptsService,
+    game,
+    redis,
     attachRoomEvents: (events) => rooms.events.attach(events),
     close: async () => {
+      await game.runtime.stop();
       await redis.quit();
       await dataSource.destroy();
     },
