@@ -1,6 +1,6 @@
 import type { ControlMode, MatchStatus } from '@olympia/shared';
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
-import type { ScriptSnapshot } from './engine/match-state';
+import type { MatchEndReason, ScriptSnapshot } from './engine/match-state';
 
 /** Một trận đấu trong phòng (mục 8). */
 @Entity({ name: 'matches' })
@@ -24,7 +24,7 @@ export class MatchEntity {
   status!: MatchStatus;
 
   @Column({ name: 'end_reason', type: 'text', nullable: true })
-  endReason!: 'host' | 'abnormal' | null;
+  endReason!: MatchEndReason | null;
 
   /** Kịch bản và câu hỏi chốt lúc bắt đầu (BR-SCRIPT-03, BR-QB-04). */
   @Column({ name: 'script_snapshot', type: 'jsonb' })

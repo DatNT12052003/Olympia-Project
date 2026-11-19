@@ -14,8 +14,13 @@ export const ScriptErrorCode = {
   RoundNotSupported: 'ROUND_NOT_SUPPORTED',
 } as const;
 
-/** Vòng đã có plugin trong engine. Vòng khác hiện "Sắp có" ở giao diện (P5). */
-export const PLAYABLE_ROUNDS = ['warmup'] as const satisfies readonly RoundKey[];
+/** Vòng đã có plugin trong engine (P5: đủ bốn vòng). */
+export const PLAYABLE_ROUNDS = [
+  'warmup',
+  'obstacle',
+  'acceleration',
+  'finish',
+] as const satisfies readonly RoundKey[];
 
 export const ROUND_TITLES: Record<RoundKey, string> = {
   warmup: 'Khởi động',
@@ -130,17 +135,196 @@ export const WARMUP_PRESETS: readonly RoundPreset<WarmupRules>[] = [
   },
 ];
 
-export const warmupRoundSchema = z.object({
-  type: z.literal('warmup'),
+/**
+ * Luật vòng Vượt chướng ngại vật (7.2, DL-041). Câu hỏi của vòng theo thứ tự trong bộ đề: câu 1
+ * là từ khóa CNV (media của câu là ảnh nền), tiếp theo là các hàng ngang, cuối cùng là ô trung tâm
+ * (nếu bật). Mọi câu đều là trả lời ngắn.
+ */
+export const obstacleRulesSchema = z.object({
+  rowCount: z.number().int().min(1, 'Tối thiểu 1 hàng.').max(8, 'Tối đa 8 hàng.'),
+  centerEnabled: z.boolean(),
+  /** Ai chọn hàng tiếp theo: lần lượt từng Player, hoặc mở theo thứ tự hàng. */
+  rowSelection: z.enum(['player', 'order']),
+  rowSeconds: seconds(120),
+  rowPoints: points,
+  /** Điểm CNV khi mới mở 1 hàng; mỗi hàng mở thêm giảm `keywordStep`. */
+  keywordStartPoints: points,
+  keywordStep: points,
+  /** Điểm CNV sau khi đã mở ô trung tâm (và mức thấp nhất). */
+  keywordCenterPoints: points,
+});
+export type ObstacleRules = z.infer<typeof obstacleRulesSchema>;
+
+/** Luật vòng Tăng tốc (7.3). */
+export const accelerationRulesSchema = z.object({
+  questionCount: z.number().int().min(1, 'Tối thiểu 1 câu.').max(20, 'Tối đa 20 câu.'),
+  timeSeconds: seconds(120),
+  /** Điểm theo thứ tự trả lời đúng nhanh nhất (người đúng thứ 1, 2, ...). */
+  rankPoints: z.array(points).min(1, 'Nhập ít nhất 1 mức điểm.').max(4, 'Tối đa 4 mức điểm.'),
+  /** Cho gửi lại để ghi đè đáp án trước (thời gian tính theo lần gửi cuối). */
+  allowResubmit: z.boolean(),
+});
+export type AccelerationRules = z.infer<typeof accelerationRulesSchema>;
+
+export const finishLevelSchema = z.object({
+  points: z.number().int().min(1, 'Điểm tối thiểu 1.').max(1000, 'Tối đa 1000 điểm.'),
+  seconds: seconds(120),
+});
+
+/** Luật vòng Về đích (7.4, DL-043). */
+export const finishRulesSchema = z
+  .object({
+    answerMode: answerModeSchema,
+    /** Thứ tự thi: điểm thấp thi trước hoặc theo vị trí. */
+    order: z.enum(['score_asc', 'seat']),
+    questionsPerPlayer: z.number().int().min(1, 'Tối thiểu 1 câu.').max(6, 'Tối đa 6 câu.'),
+    /** Các mức điểm Player chọn cho từng câu trong gói. */
+    levels: z.array(finishLevelSchema).min(1, 'Cần ít nhất 1 mức điểm.').max(3, 'Tối đa 3 mức.'),
+    /** Ngôi sao hy vọng: tối đa 1 lần mỗi lượt; đúng ×2, sai trừ điểm câu. */
+    starEnabled: z.boolean(),
+    steal: z.object({
+      enabled: z.boolean(),
+      /** Thời gian bấm chuông giành quyền. */
+      buzzSeconds: seconds(60),
+      /** Thời gian trả lời sau khi giành quyền. */
+      answerSeconds: seconds(120),
+      /** Đúng: điểm câu lấy từ Player chính (hoặc hệ thống cộng thêm). */
+      takeFromMain: z.boolean(),
+      /** Sai: bị trừ bao nhiêu % điểm câu. */
+      wrongPenaltyPercent: z.number().int().min(0).max(100),
+    }),
+  })
+  .refine((rules) => new Set(rules.levels.map((l) => l.points)).size === rules.levels.length, {
+    path: ['levels'],
+    message: 'Các mức điểm phải khác nhau.',
+  });
+export type FinishRules = z.infer<typeof finishRulesSchema>;
+
+export const OBSTACLE_PRESETS: readonly RoundPreset<ObstacleRules>[] = [
+  {
+    id: 'olympia',
+    name: 'Mặc định Olympia',
+    rules: {
+      rowCount: 4,
+      centerEnabled: true,
+      rowSelection: 'player',
+      rowSeconds: 15,
+      rowPoints: 10,
+      keywordStartPoints: 80,
+      keywordStep: 20,
+      keywordCenterPoints: 10,
+    },
+  },
+  {
+    id: 'in_order',
+    name: 'Mở hàng theo thứ tự',
+    rules: {
+      rowCount: 4,
+      centerEnabled: true,
+      rowSelection: 'order',
+      rowSeconds: 20,
+      rowPoints: 10,
+      keywordStartPoints: 80,
+      keywordStep: 20,
+      keywordCenterPoints: 10,
+    },
+  },
+];
+
+export const ACCELERATION_PRESETS: readonly RoundPreset<AccelerationRules>[] = [
+  {
+    id: 'olympia',
+    name: 'Mặc định Olympia',
+    rules: {
+      questionCount: 4,
+      timeSeconds: 30,
+      rankPoints: [40, 30, 20, 10],
+      allowResubmit: false,
+    },
+  },
+  {
+    id: 'resubmit',
+    name: 'Cho sửa đáp án',
+    rules: { questionCount: 4, timeSeconds: 30, rankPoints: [40, 30, 20, 10], allowResubmit: true },
+  },
+];
+
+const FINISH_STEAL_DEFAULT: FinishRules['steal'] = {
+  enabled: true,
+  buzzSeconds: 5,
+  answerSeconds: 10,
+  takeFromMain: true,
+  wrongPenaltyPercent: 50,
+};
+
+export const FINISH_PRESETS: readonly RoundPreset<FinishRules>[] = [
+  {
+    id: 'olympia',
+    name: 'Mặc định Olympia',
+    rules: {
+      answerMode: 'device',
+      order: 'score_asc',
+      questionsPerPlayer: 3,
+      levels: [
+        { points: 20, seconds: 15 },
+        { points: 30, seconds: 20 },
+      ],
+      starEnabled: true,
+      steal: FINISH_STEAL_DEFAULT,
+    },
+  },
+  {
+    id: 'verbal',
+    name: 'Trả lời bằng lời',
+    rules: {
+      answerMode: 'verbal',
+      order: 'score_asc',
+      questionsPerPlayer: 3,
+      levels: [
+        { points: 20, seconds: 15 },
+        { points: 30, seconds: 20 },
+      ],
+      starEnabled: true,
+      steal: FINISH_STEAL_DEFAULT,
+    },
+  },
+];
+
+const roundBase = {
   /** Preset đã chọn làm gốc (chỉ để hiển thị; `rules` là giá trị thật). */
   preset: z.string().max(40),
   /** `null` khi đang soạn; bắt buộc trước khi bắt đầu trận (BR-SCRIPT-01). */
   source: questionSourceSchema.nullable(),
+};
+
+export const warmupRoundSchema = z.object({
+  type: z.literal('warmup'),
+  ...roundBase,
   rules: warmupRulesSchema,
 });
+export const obstacleRoundSchema = z.object({
+  type: z.literal('obstacle'),
+  ...roundBase,
+  rules: obstacleRulesSchema,
+});
+export const accelerationRoundSchema = z.object({
+  type: z.literal('acceleration'),
+  ...roundBase,
+  rules: accelerationRulesSchema,
+});
+export const finishRoundSchema = z.object({
+  type: z.literal('finish'),
+  ...roundBase,
+  rules: finishRulesSchema,
+});
 
-/** Một vòng trong kịch bản. P5 bổ sung các loại vòng khác vào union này. */
-export const scriptRoundSchema = z.discriminatedUnion('type', [warmupRoundSchema]);
+/** Một vòng trong kịch bản. */
+export const scriptRoundSchema = z.discriminatedUnion('type', [
+  warmupRoundSchema,
+  obstacleRoundSchema,
+  accelerationRoundSchema,
+  finishRoundSchema,
+]);
 export type ScriptRound = z.infer<typeof scriptRoundSchema>;
 export type RoundType = ScriptRound['type'];
 
@@ -152,6 +336,12 @@ export const scriptSettingsSchema = z.object({
   allowNegativeScore: z.boolean(),
   /** 8.5: Player đến lượt mất kết nối thì tạm dừng trận hay tính là bỏ qua. */
   onTurnDisconnect: z.enum(['pause', 'skip']),
+  /** Chế độ tự động: thời gian hiển thị câu hỏi trước khi bắt đầu tính giờ (giây). */
+  autoReadSeconds: z.number().int().min(0).max(60).default(3),
+  /** Chế độ tự động: thời gian hiển thị đáp án trước khi chuyển câu (8.4, mặc định 3 giây). */
+  autoRevealSeconds: z.number().int().min(1).max(60).default(3),
+  /** 9.3: câu hỏi phụ khi các Player dẫn đầu hòa điểm sau vòng cuối; tắt thì đồng hạng. */
+  tiebreakEnabled: z.boolean().default(true),
 });
 export type ScriptSettings = z.infer<typeof scriptSettingsSchema>;
 
@@ -160,7 +350,26 @@ export const DEFAULT_SCRIPT_SETTINGS: ScriptSettings = {
   soundEffects: true,
   allowNegativeScore: false,
   onTurnDisconnect: 'pause',
+  autoReadSeconds: 3,
+  autoRevealSeconds: 3,
+  tiebreakEnabled: true,
 };
+
+/** Thiết lập của kịch bản cũ (trước P5) thiếu trường mới: điền giá trị mặc định. */
+export function withSettingDefaults(settings: Partial<ScriptSettings>): ScriptSettings {
+  return { ...DEFAULT_SCRIPT_SETTINGS, ...settings };
+}
+
+/** Điểm CNV khi giải được sau `opened` hàng (đã mở ô trung tâm thì dùng `keywordCenterPoints`). */
+export function obstacleKeywordPoints(
+  rules: ObstacleRules,
+  opened: number,
+  centerOpened: boolean,
+): number {
+  if (centerOpened) return rules.keywordCenterPoints;
+  const value = rules.keywordStartPoints - rules.keywordStep * Math.max(0, opened - 1);
+  return Math.max(rules.keywordCenterPoints, value);
+}
 
 export const scriptInputSchema = z.object({
   name: z
@@ -262,5 +471,23 @@ export function roundRequirement(round: ScriptRound): { fixed: number; perPlayer
   switch (round.type) {
     case 'warmup':
       return warmupRequirement(round.rules);
+    case 'obstacle':
+      // Từ khóa + các hàng ngang + ô trung tâm.
+      return {
+        fixed: 1 + round.rules.rowCount + (round.rules.centerEnabled ? 1 : 0),
+        perPlayer: 0,
+      };
+    case 'acceleration':
+      return { fixed: round.rules.questionCount, perPlayer: 0 };
+    case 'finish':
+      return { fixed: 0, perPlayer: round.rules.questionsPerPlayer };
   }
 }
+
+/** Preset của từng loại vòng (BR-ROUND-00). */
+export const ROUND_PRESETS = {
+  warmup: WARMUP_PRESETS,
+  obstacle: OBSTACLE_PRESETS,
+  acceleration: ACCELERATION_PRESETS,
+  finish: FINISH_PRESETS,
+} as const;

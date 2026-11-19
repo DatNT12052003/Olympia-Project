@@ -19,6 +19,7 @@ export interface SourceQuestion {
   answer: QuestionAnswer;
   explanation: string | null;
   mediaId: string | null;
+  defaultPoints: number | null;
 }
 
 /** Phiên bản bộ public còn dùng được trong kịch bản, kể cả khi đã bị thay/gỡ (BR-QB-07). */
@@ -63,6 +64,7 @@ export function createQuestionSourcesService({ dataSource }: { dataSource: DataS
         answer: q.answer,
         explanation: q.explanation,
         mediaId: q.mediaId,
+        defaultPoints: q.defaultPoints ?? null,
       }),
     );
   }
@@ -76,6 +78,7 @@ export function createQuestionSourcesService({ dataSource }: { dataSource: DataS
         answer: q.answer,
         explanation: q.explanation,
         mediaId: q.mediaId,
+        defaultPoints: q.defaultPoints ?? null,
       }));
   }
 

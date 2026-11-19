@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { MatchErrorCode, ROUND_TITLES, roundRequirement } from '@olympia/shared';
+import {
+  MatchErrorCode,
+  ROUND_TITLES,
+  roundRequirement,
+  withSettingDefaults,
+} from '@olympia/shared';
 import type { UserPrincipal } from '../../shared/auth/principal';
 import { ConflictError } from '../../shared/errors/app-error';
 import type { QuestionSourcesService } from '../question-bank/question-sources.service';
@@ -7,6 +12,7 @@ import type { RoomsService } from '../rooms/rooms.service';
 import type { ScriptsService } from '../scripts/scripts.service';
 import { createInitialState } from './engine/match-engine';
 import type { MatchState, ScriptSnapshot } from './engine/match-state';
+import { roundPlugin } from './engine/round-registry';
 import type { MatchRuntime } from './match-runtime';
 import { MatchPlayerEntity } from './match-player.entity';
 import { MatchEntity } from './match.entity';
@@ -34,12 +40,6 @@ export function createMatchService(deps: MatchServiceDeps) {
         roomId,
         options,
         async (manager, room, players) => {
-          if (room.controlMode === 'auto') {
-            throw new ConflictError(
-              'Chế độ tự động chưa được hỗ trợ. Hãy đổi phòng sang Thủ công để bắt đầu trận.',
-              MatchErrorCode.AutoModeUnsupported,
-            );
-          }
           const script = room.scriptId
             ? await deps.scripts.loadForMatch(actor.userId, room.scriptId)
             : null;
@@ -68,12 +68,14 @@ export function createMatchService(deps: MatchServiceDeps) {
                 MatchErrorCode.ScriptInvalid,
               );
             }
+            const invalid = roundPlugin(round.type).validate?.(round, questions);
+            if (invalid) throw new ConflictError(invalid, MatchErrorCode.ScriptInvalid);
             rounds.push({ round, questions });
           }
           const snapshot: ScriptSnapshot = {
             scriptId: script.id,
             name: script.name,
-            settings: script.settings,
+            settings: withSettingDefaults(script.settings),
             rounds,
           };
 
@@ -90,6 +92,7 @@ export function createMatchService(deps: MatchServiceDeps) {
               kind: p.userId ? 'user' : 'guest',
               key: p.userId ? `u:${p.userId}` : `g:${p.guestId}`,
             })),
+            mode: room.controlMode,
             now: startedAt,
           });
           await manager.insert(MatchEntity, {

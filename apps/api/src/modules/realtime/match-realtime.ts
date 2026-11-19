@@ -4,6 +4,7 @@ import {
   hasRoomPermission,
   matchAnswerPayloadSchema,
   matchBuzzPayloadSchema,
+  matchChoicePayloadSchema,
   matchCommandPayloadSchema,
   MatchErrorCode,
   RoomErrorCode,
@@ -204,6 +205,21 @@ export function createMatchRealtime({
           { actionId },
         )) as { won: boolean };
         ack({ ok: true, data: { won: reply.won } });
+      } catch (error) {
+        ack(failure(error, logger));
+      }
+    });
+
+    socket.on('match:choose', async (payload, ack) => {
+      if (typeof ack !== 'function') return;
+      try {
+        const { roomId, actionId, choice } = matchChoicePayloadSchema.parse(payload);
+        const viewer = await requireCurrentConnection(roomId, socket);
+        await throttle(viewer, roomId);
+        const matchId = await requireMatch(roomId);
+        const seat = await requirePlayerSeat(viewer, matchId);
+        await runtime.dispatch(matchId, { type: 'choice', seat, choice }, { actionId });
+        ack({ ok: true });
       } catch (error) {
         ack(failure(error, logger));
       }

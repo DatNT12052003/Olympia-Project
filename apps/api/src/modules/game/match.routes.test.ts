@@ -8,6 +8,7 @@ import {
   ScriptErrorCode,
   WARMUP_PRESETS,
   type WarmupRules,
+  type WarmupView,
 } from '@olympia/shared';
 import request from 'supertest';
 import {
@@ -262,9 +263,7 @@ describe('Bắt đầu trận POST /api/rooms/:roomId/match', () => {
     expect(await code()).toBe(MatchErrorCode.ScriptMissing);
 
     const script = await createScript(api, await createWarmupSet(api, 5), warmupRules());
-    await api.patch(`/api/rooms/${room.id}`, { scriptId: script.id, controlMode: 'auto' });
-    expect(await code()).toBe(MatchErrorCode.AutoModeUnsupported);
-    await api.patch(`/api/rooms/${room.id}`, { controlMode: 'manual' });
+    await api.patch(`/api/rooms/${room.id}`, { scriptId: script.id });
     // 2 người × 2 câu + 2 câu chung = 6 > 5.
     expect(await code()).toBe(MatchErrorCode.ScriptInvalid);
 
@@ -352,7 +351,7 @@ describe('Bắt đầu trận POST /api/rooms/:roomId/match', () => {
     )) as { won: boolean }[];
     expect(replies.filter((r) => r.won)).toHaveLength(1);
     const winner = a.players[replies.findIndex((r) => r.won)]!.seat;
-    expect((await hostView(a)).round.buzz).toEqual({
+    expect(((await hostView(a)).round as WarmupView).buzz).toEqual({
       open: false,
       winnerSeat: winner,
       attemptedSeats: [winner],

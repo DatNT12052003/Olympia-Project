@@ -1,4 +1,4 @@
-import type { HostCommand, MatchView, PlayerAnswer } from './match.js';
+import type { HostCommand, MatchView, PlayerAnswer, PlayerChoice } from './match.js';
 import type { RoomRemovedReason, RoomState } from './rooms.js';
 
 /**
@@ -44,6 +44,11 @@ export interface ClientToServerEvents {
   'match:buzz': (
     payload: { roomId: string; actionId: string; questionRef: string },
     ack: (result: Ack<{ won: boolean }>) => void,
+  ) => void;
+  /** Player đến lượt chọn hàng ngang / gói câu hỏi / Ngôi sao hy vọng. */
+  'match:choose': (
+    payload: { roomId: string; actionId: string; choice: PlayerChoice },
+    ack: (result: Ack) => void,
   ) => void;
 }
 

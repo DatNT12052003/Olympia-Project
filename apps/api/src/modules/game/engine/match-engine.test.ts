@@ -6,6 +6,7 @@ import {
   type QuestionAnswer,
   WARMUP_PRESETS,
   type WarmupRules,
+  type WarmupView,
 } from '@olympia/shared';
 import { applyInput, buildMatchView, createInitialState, type EngineInput } from './match-engine';
 import type { EngineEffect, MatchQuestion, MatchState, ScriptSnapshot } from './match-state';
@@ -96,7 +97,16 @@ function setup(options: { rules?: WarmupRules; questions?: number; allowNegative
         presence: new Map(),
         media: new Map(),
         now: clock,
-      }).round;
+      }).round as WarmupView;
+    },
+    fullView() {
+      return buildMatchView(current, {
+        audience: 'host',
+        seat: null,
+        presence: new Map(),
+        media: new Map(),
+        now: clock,
+      });
     },
     score(seat: number) {
       return current.players.find((p) => p.seat === seat)!.score;
@@ -484,9 +494,18 @@ describe('Game Engine – vòng Khởi động', () => {
     expect(codeOf(() => game.command({ type: 'next_round' }))).toBe(MatchErrorCode.InvalidState);
     game.command({ type: 'next_question' });
     expect(game.view().part).toBe('done');
-    expect(codeOf(() => game.command({ type: 'next_round' }))).toBe(MatchErrorCode.InvalidState);
-    game.command({ type: 'end_match' });
+    // Vòng cuối, không hòa điểm: bước tiếp theo là kết thúc trận (hoàn thành).
+    expect(game.fullView().nextStep).toBe('finish');
+    game.command({ type: 'next_round' });
     expect(game.state.status).toBe('finished');
+    expect(game.state.endReason).toBe('completed');
     expect(codeOf(() => game.command({ type: 'pause' }))).toBe(MatchErrorCode.NoActiveMatch);
+  });
+
+  it('Host kết thúc giữa vòng là kết thúc sớm (host)', () => {
+    const game = setup();
+    game.command({ type: 'next_question' });
+    game.command({ type: 'end_match' });
+    expect(game.state.endReason).toBe('host');
   });
 });

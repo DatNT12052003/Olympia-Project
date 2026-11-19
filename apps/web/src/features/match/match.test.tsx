@@ -1,13 +1,17 @@
 import type {
+  AccelerationView,
+  FinishView,
   GuestSessionResponse,
   MatchQuestionView,
   MatchView,
+  ObstacleView,
   ParticipantView,
   RoomState,
   ScriptDetail,
+  WarmupView,
 } from '@olympia/shared';
 import { WARMUP_PRESETS } from '@olympia/shared';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { mockApi, sessionResponse, withStoredSession } from '../../test/mock-api';
@@ -84,12 +88,16 @@ function matchView(overrides: Partial<MatchView> = {}): MatchView {
     version: 12,
     audience: 'player',
     mySeat: 1,
+    mode: 'manual',
     status: 'running',
     endReason: null,
     pause: null,
     rounds: [{ type: 'warmup', title: 'Khởi động' }],
     roundIndex: 0,
     roundFinished: false,
+    nextStep: 'finish',
+    awaitingHost: false,
+    tiebreakWinner: null,
     players: [
       {
         seat: 1,
@@ -112,7 +120,7 @@ function matchView(overrides: Partial<MatchView> = {}): MatchView {
         eliminated: false,
       },
     ],
-    timer: { endsAt: Date.now() + 5000, durationMs: 5000, remainingMs: null },
+    timer: { endsAt: Date.now() + 5000, durationMs: 5000, remainingMs: null, purpose: 'answer' },
     round: {
       type: 'warmup',
       part: 'individual',
@@ -181,7 +189,7 @@ describe('Trận đấu – người chơi', () => {
         version: 13,
         timer: null,
         round: {
-          ...matchView().round,
+          ...(matchView().round as WarmupView),
           question: question({
             phase: 'judging',
             answers: [
@@ -205,7 +213,7 @@ describe('Trận đấu – người chơi', () => {
     const buzzes: unknown[] = [];
     const shared = matchView({
       round: {
-        ...matchView().round,
+        ...(matchView().round as WarmupView),
         part: 'shared',
         turnSeat: null,
         questionNo: 7,
@@ -233,9 +241,211 @@ describe('Trận đấu – người chơi', () => {
     await waitFor(() => expect(buzzes).toHaveLength(1));
     expect(await screen.findByText('Người khác đã giành quyền trước.')).toBeInTheDocument();
   });
+
+  it('Vượt chướng ngại vật: chọn hàng đến lượt, đoán từ khóa', async () => {
+    asGuestPlayer();
+    const sent: { event: string; payload: unknown }[] = [];
+    const obstacle: ObstacleView = {
+      type: 'obstacle',
+      phase: 'choosing',
+      turnSeat: 1,
+      rowSelection: 'player',
+      rows: [1, 2].map((index) => ({
+        index,
+        kind: 'row' as const,
+        letters: 3 + index,
+        status: 'closed' as const,
+        content: null,
+        answer: null,
+        correctCount: 0,
+      })),
+      pieces: [false, false],
+      image: null,
+      keyword: {
+        ref: '1.0',
+        letters: 9,
+        answer: null,
+        solvedBy: null,
+        revealed: false,
+        points: 80,
+      },
+      question: null,
+      currentRow: null,
+      guesses: [],
+      outSeats: [],
+    };
+    mockSocketServer({
+      'room:subscribe': (_payload, ack) => ack?.({ ok: true, data: roomState('member') }),
+      'match:sync': (_payload, ack) =>
+        ack?.({
+          ok: true,
+          data: matchView({
+            rounds: [{ type: 'obstacle', title: 'Vượt chướng ngại vật' }],
+            timer: null,
+            round: obstacle,
+          }),
+        }),
+      'match:choose': (payload, ack) => {
+        sent.push({ event: 'choose', payload });
+        ack?.({ ok: true });
+      },
+      'match:answer': (payload, ack) => {
+        sent.push({ event: 'answer', payload });
+        ack?.({ ok: true, data: { elapsedMs: 0 } });
+      },
+    });
+    renderApp(`/phong/${ROOM_ID}`);
+
+    expect(await screen.findByText('Chướng ngại vật · 9 ký tự')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Hàng 2 · 5 chữ' }));
+    await userEvent.click(screen.getByRole('button', { name: /Bấm chuông trả lời CNV/ }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Từ khóa (9 ký tự)' }), 'không gian');
+    await userEvent.click(screen.getByRole('button', { name: 'Gửi từ khóa' }));
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[0]!.payload).toEqual(expect.objectContaining({ choice: { type: 'row', row: 2 } }));
+    expect(sent[1]!.payload).toEqual(
+      expect.objectContaining({
+        questionRef: '1.0',
+        answer: { type: 'short_answer', text: 'không gian' },
+      }),
+    );
+  });
+
+  it('Về đích: chọn gói và Ngôi sao hy vọng', async () => {
+    asGuestPlayer();
+    const choices: unknown[] = [];
+    const finish: FinishView = {
+      type: 'finish',
+      phase: 'picking',
+      answerMode: 'device',
+      order: [1, 2],
+      turn: 0,
+      turnSeat: 1,
+      levels: [
+        { points: 20, seconds: 15 },
+        { points: 30, seconds: 20 },
+      ],
+      questionsPerPlayer: 3,
+      starEnabled: true,
+      pack: null,
+      questionNo: 0,
+      question: null,
+      steal: null,
+      stealEnabled: true,
+      available: {},
+    };
+    mockSocketServer({
+      'room:subscribe': (_payload, ack) => ack?.({ ok: true, data: roomState('member') }),
+      'match:sync': (_payload, ack) =>
+        ack?.({
+          ok: true,
+          data: matchView({
+            rounds: [{ type: 'finish', title: 'Về đích' }],
+            timer: null,
+            round: finish,
+          }),
+        }),
+      'match:choose': (payload, ack) => {
+        choices.push(payload);
+        ack?.({ ok: true });
+      },
+    });
+    renderApp(`/phong/${ROOM_ID}`);
+
+    expect(await screen.findByRole('heading', { name: 'Chọn gói câu hỏi' })).toBeInTheDocument();
+    const question2 = screen.getByRole('radiogroup', { name: 'Mức điểm câu 2' });
+    await userEvent.click(within(question2).getByRole('radio', { name: '30' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ngôi sao hy vọng' })[1]!);
+    expect(screen.getByText('Đúng: ×2 = 60 điểm · Sai: −30 điểm')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Xác nhận gói 20 · 30 · 20' }));
+    await waitFor(() =>
+      expect(choices).toEqual([
+        expect.objectContaining({ choice: { type: 'pack', levels: [20, 30, 20], star: 1 } }),
+      ]),
+    );
+  });
 });
 
 describe('Trận đấu – Host', () => {
+  it('Tăng tốc: bảng câu trả lời theo thời gian, Host chấm rồi công bố', async () => {
+    withStoredSession();
+    mockApi({ 'POST /auth/refresh': () => jsonResponse(sessionResponse()) });
+    const commands: unknown[] = [];
+    const acceleration: AccelerationView = {
+      type: 'acceleration',
+      questionNo: 2,
+      questionTotal: 4,
+      rankPoints: [40, 30, 20, 10],
+      allowResubmit: false,
+      reserves: 1,
+      question: question({
+        ref: '2.1',
+        phase: 'judging',
+        answerType: 'short_answer',
+        options: null,
+        correctAnswer: {
+          type: 'short_answer',
+          answer: '12',
+          acceptedAnswers: [],
+          ignoreDiacritics: false,
+        },
+        answers: [
+          {
+            seat: 1,
+            state: 'answered',
+            answer: { type: 'short_answer', text: 'mười hai' },
+            elapsedMs: 9105,
+            suggested: 'wrong',
+            verdict: null,
+          },
+          {
+            seat: 2,
+            state: 'answered',
+            answer: { type: 'short_answer', text: '12' },
+            elapsedMs: 6482,
+            suggested: 'correct',
+            verdict: null,
+          },
+        ],
+      }),
+    };
+    mockSocketServer({
+      'room:subscribe': (_payload, ack) => ack?.({ ok: true, data: roomState('host') }),
+      'match:sync': (_payload, ack) =>
+        ack?.({
+          ok: true,
+          data: matchView({
+            audience: 'host',
+            mySeat: null,
+            mode: 'auto',
+            awaitingHost: true,
+            rounds: [{ type: 'acceleration', title: 'Tăng tốc' }],
+            round: acceleration,
+          }),
+        }),
+      'match:command': (payload, ack) => {
+        commands.push(payload);
+        ack?.({ ok: true });
+      },
+    });
+    renderApp(`/phong/${ROOM_ID}`);
+
+    expect(await screen.findByText('Câu trả lời theo thứ tự server nhận')).toBeInTheDocument();
+    expect(screen.getAllByText('Chờ Host xác nhận').length).toBeGreaterThan(0);
+    const rows = screen.getAllByRole('row');
+    // Sắp theo thời gian server nhận: Bảo Ngọc (6,482 s) trước Minh Anh (9,105 s).
+    expect(within(rows[1]!).getByText('6,482 s')).toBeInTheDocument();
+    expect(within(rows[2]!).getByText('✕ Không khớp')).toBeInTheDocument();
+    await userEvent.click(within(rows[2]!).getByRole('button', { name: 'Đúng' }));
+    await userEvent.click(screen.getByRole('button', { name: /Công bố đáp án/ }));
+    await waitFor(() =>
+      expect(commands).toEqual([
+        expect.objectContaining({ command: { type: 'judge', seat: 1, correct: true } }),
+        expect.objectContaining({ command: { type: 'reveal' } }),
+      ]),
+    );
+  });
+
   it('thấy đáp án, chấm và gửi lệnh điều khiển', async () => {
     withStoredSession();
     mockApi({ 'POST /auth/refresh': () => jsonResponse(sessionResponse()) });
@@ -244,7 +454,7 @@ describe('Trận đấu – Host', () => {
       audience: 'host',
       mySeat: null,
       round: {
-        ...matchView().round,
+        ...(matchView().round as WarmupView),
         question: question({
           phase: 'judging',
           correctAnswer: { type: 'mcq', options: ['2', '3', '4', '6'], correctIndex: 2 },
@@ -306,6 +516,9 @@ describe('Kịch bản', () => {
         soundEffects: true,
         allowNegativeScore: false,
         onTurnDisconnect: 'pause',
+        autoReadSeconds: 3,
+        autoRevealSeconds: 3,
+        tiebreakEnabled: true,
       },
       rounds: [
         {

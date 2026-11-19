@@ -1,18 +1,63 @@
 import type { MatchView, RoomState } from '@olympia/shared';
+import { initials, SEAT_BG } from '../rooms/room-format';
 import { ReactionBar } from '../rooms/room-stage';
 import {
   ANSWER_TYPE_LABELS,
   correctText,
+  formatElapsed,
   partLabel,
   playerName,
   pointsLabel,
   roundTitle,
+  seatStatus,
   seconds,
   useRemainingMs,
 } from './match-format';
 import { OptionGrid, PauseBanner, QuestionMedia, Scoreboard } from './match-ui';
+import { ObstacleBoard, ObstacleImage } from './obstacle-ui';
 
-/** Màn khán giả trong trận (SpectatorMobile): xem câu hỏi, bảng điểm, gửi cảm xúc. */
+/** Thẻ người chơi kèm trạng thái trong vòng (ObstacleSpectator). */
+function PlayerCards({ view }: { view: MatchView }) {
+  return (
+    <section
+      aria-label="Người chơi"
+      className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3"
+    >
+      {view.players.map((p) => {
+        const status = seatStatus(view, p.seat);
+        const out = status?.text === 'Bị loại khỏi vòng' || p.eliminated;
+        return (
+          <div
+            key={p.seat}
+            className={`flex items-center gap-3 rounded-[14px] border-2 bg-stage-800 p-2.5 ${
+              status?.active ? 'border-accent-400' : 'border-stage-700'
+            } ${out ? 'opacity-50' : ''}`}
+          >
+            <span
+              aria-hidden="true"
+              className={`flex size-12 shrink-0 items-center justify-center rounded-[10px] font-extrabold text-stage-900 ${SEAT_BG[p.seat] ?? ''}`}
+            >
+              {initials(p.displayName)}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="truncate text-[15px] font-bold">
+                {p.seat}. {p.displayName}
+              </span>
+              <span className="text-xs font-semibold text-stage-200">
+                {p.eliminated ? 'Bị loại khỏi trận' : (status?.text ?? 'Chờ lượt')}
+              </span>
+            </span>
+            <span className="text-[22px] font-extrabold tabular-nums text-accent-400">
+              {p.score}
+            </span>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+/** Màn khán giả trong trận (SpectatorMobile, ObstacleSpectator): xem, bảng điểm, gửi cảm xúc. */
 export function SpectatorMatch({
   view,
   room,
@@ -25,25 +70,66 @@ export function SpectatorMatch({
   onSendReaction: (emoji: string) => Promise<string | null>;
 }) {
   const remaining = useRemainingMs(view.timer, clockOffset);
-  const question = view.round.question;
+  const round = view.round;
+  const question = round.question;
   const revealed = question && ['revealed', 'skipped', 'voided'].includes(question.phase);
-  const answering =
-    question?.answeringSeat ?? (view.round.part === 'individual' ? view.round.turnSeat : null);
+  const active = view.players.find((p) => seatStatus(view, p.seat)?.active);
+  const countdown =
+    view.timer && ['answer', 'buzz'].includes(view.timer.purpose) ? remaining : null;
+
+  const header = (
+    <header className="border-b border-[#1E3A75]">
+      <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div className="min-w-0">
+          <p className="text-xs text-stage-200">
+            {room.room.name} · Bạn đang xem với vai trò khán giả
+          </p>
+          <p className="truncate text-[15px] font-bold lg:text-xl lg:font-extrabold">
+            {roundTitle(view)}{' '}
+            <span className="font-medium text-stage-200">– {partLabel(view)}</span>
+          </p>
+        </div>
+        <span className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-stage-800 px-3 text-xs font-semibold">
+          {room.spectators.count} người đang xem
+        </span>
+      </div>
+    </header>
+  );
+
+  if (round.type === 'obstacle') {
+    return (
+      <>
+        {header}
+        <main className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col gap-[18px] px-4 py-5 sm:px-6">
+          <PauseBanner view={view} />
+          <div className="flex flex-wrap items-stretch gap-5">
+            <div className="flex min-w-0 flex-[999_1_620px] flex-col gap-4">
+              <ObstacleBoard
+                round={round}
+                remainingSeconds={countdown !== null ? seconds(countdown) : null}
+              />
+              {question && round.phase === 'row' && (
+                <p className="rounded-2xl bg-stage-800 p-4 text-[17px] font-bold leading-snug">
+                  {question.content}
+                </p>
+              )}
+            </div>
+            <div className="min-w-0 flex-[1_1_340px]">
+              <ObstacleImage round={round} />
+            </div>
+          </div>
+          <PlayerCards view={view} />
+          <section aria-label="Gửi cảm xúc" className="self-center rounded-2xl bg-stage-800 p-3">
+            <ReactionBar enabled={room.room.reactionsEnabled} onSend={onSendReaction} />
+          </section>
+        </main>
+      </>
+    );
+  }
 
   return (
     <>
-      <header className="border-b border-[#1E3A75]">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-accent-400">{roundTitle(view)}</p>
-            <p className="truncate text-[15px] font-bold">{room.room.name}</p>
-          </div>
-          <span className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-stage-800 px-3 text-xs font-semibold">
-            Khán giả · {room.spectators.count}
-          </span>
-        </div>
-      </header>
-
+      {header}
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-3.5 px-4 py-4 sm:px-6 lg:flex-row lg:items-start lg:gap-6">
         <div className="flex min-w-0 flex-1 flex-col gap-3.5">
           <PauseBanner view={view} />
@@ -52,12 +138,12 @@ export function SpectatorMatch({
               Host · {room.host.displayName}
             </div>
             <div className="flex h-24 flex-col justify-between rounded-xl border-2 border-accent-400 bg-[#1E3A75] p-2 text-xs font-semibold">
-              {answering !== null ? (
+              {active ? (
                 <>
-                  <span className="self-start rounded bg-accent-400 px-1.5 py-0.5 text-[10px] font-extrabold text-stage-900">
-                    ĐANG TRẢ LỜI
+                  <span className="self-start rounded bg-accent-400 px-1.5 py-0.5 text-[10px] font-extrabold uppercase text-stage-900">
+                    {seatStatus(view, active.seat)?.text}
                   </span>
-                  {answering} · {playerName(view, answering)}
+                  {active.seat} · {playerName(view, active.seat)}
                 </>
               ) : (
                 <span className="text-stage-200">{partLabel(view)}</span>
@@ -75,9 +161,9 @@ export function SpectatorMatch({
                   <span>
                     {ANSWER_TYPE_LABELS[question.answerType]} · {pointsLabel(question)}
                   </span>
-                  {view.timer && (
+                  {countdown !== null && (
                     <span role="timer" className="text-lg font-extrabold tabular-nums text-white">
-                      {remaining === null ? '--' : `${seconds(remaining)}s`}
+                      {`${seconds(countdown)}s`}
                     </span>
                   )}
                 </div>
@@ -90,6 +176,25 @@ export function SpectatorMatch({
                   <p className="text-[15px]">
                     Đáp án: <b>{correctText(question)}</b>
                   </p>
+                )}
+                {revealed && round.type === 'acceleration' && (
+                  <ul className="flex flex-col gap-1 text-sm">
+                    {question.answers
+                      .filter((a) => a.elapsedMs !== null)
+                      .sort((a, b) => (a.elapsedMs ?? 0) - (b.elapsedMs ?? 0))
+                      .map((a) => (
+                        <li key={a.seat} className="flex justify-between gap-2">
+                          <span>
+                            {playerName(view, a.seat)} · {formatElapsed(a.elapsedMs ?? 0)}
+                          </span>
+                          <b
+                            className={a.state === 'correct' ? 'text-green-300' : 'text-orange-300'}
+                          >
+                            {a.state === 'correct' ? `+${a.points ?? 0}` : '✕'}
+                          </b>
+                        </li>
+                      ))}
+                  </ul>
                 )}
                 {!revealed && (
                   <p className="text-[13px] text-stage-200">

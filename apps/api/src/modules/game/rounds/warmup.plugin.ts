@@ -17,11 +17,13 @@ import {
 import { BadRequestError } from '../../../shared/errors/app-error';
 import type { MatchQuestion } from '../engine/match-state';
 import {
+  autoDelays,
   MatchRuleError,
   type RoundContext,
   type RoundPlugin,
   type ViewContext,
 } from '../engine/round-plugin';
+import { isDefinitive } from './round-helpers';
 
 /**
  * Plugin vòng Khởi động (7.1, DL-004): phần thi riêng (mỗi Player lần lượt trả lời câu của mình)
@@ -76,6 +78,7 @@ const FINAL_PHASES: ReadonlySet<QuestionRecord['phase']> = new Set([
 ]);
 
 function rulesOf(round: ScriptRound): WarmupRules {
+  if (round.type !== 'warmup') throw new Error('Không phải vòng Khởi động');
   return round.rules;
 }
 
@@ -207,7 +210,34 @@ function openBuzzer(ctx: RoundContext, state: WarmupState, q: QuestionRecord): v
   ctx.startTimer('buzz', state.rules.shared.buzzSeconds * 1000);
 }
 
-function judge(ctx: RoundContext, state: WarmupState, seat: number, correct: boolean): void {
+/** Bắt đầu nhận trả lời (thi riêng) hoặc mở chuông (thi chung). */
+function startQuestion(ctx: RoundContext, state: WarmupState, q: QuestionRecord): void {
+  if (q.part === 'individual') {
+    q.phase = 'answering';
+    q.answeringSeat = q.ownerSeat;
+    q.startedAt = ctx.now;
+    ctx.startTimer('answer', state.rules.individual.timeSeconds * 1000);
+  } else {
+    openBuzzer(ctx, state, q);
+  }
+}
+
+/** Chế độ tự động: kết quả chấm của người đang trả lời nếu chấm được mà không cần Host. */
+function autoVerdict(state: WarmupState, q: QuestionRecord): boolean | null {
+  if (state.rules.answerMode === 'verbal' || q.answeringSeat === null) return null;
+  const entry = q.answers[String(q.answeringSeat)];
+  // Hết giờ không trả lời: thi riêng tính bỏ qua, thi chung tính sai (DL-039).
+  if (!entry) return false;
+  return isDefinitive(entry.auto, q.question) ? entry.auto === 'correct' : null;
+}
+
+function judge(
+  ctx: RoundContext,
+  state: WarmupState,
+  seat: number,
+  correct: boolean,
+  actor: 'system' | 'host' = 'host',
+): void {
   const q = currentQuestion(state);
   if (q.phase !== 'answering' && q.phase !== 'judging') {
     throw new MatchRuleError('Câu hỏi không ở trạng thái chờ chấm.', MatchErrorCode.InvalidState);
@@ -219,7 +249,7 @@ function judge(ctx: RoundContext, state: WarmupState, seat: number, correct: boo
     );
   }
   ctx.clearTimer();
-  const delta = applyResult(ctx, state, q, seat, correct, 'host');
+  const delta = applyResult(ctx, state, q, seat, correct, actor);
   ctx.log(
     `${questionLabel(state, q, ctx)}: ${ctx.playerName(seat)} ${correct ? 'đúng' : 'sai'}${delta !== 0 ? `, ${signed(delta)}` : ''}`,
   );
@@ -240,8 +270,8 @@ export const warmupPlugin: RoundPlugin<WarmupState> = {
     return warmupRequirement(rulesOf(round));
   },
 
-  init(round, questions, seats, roundIndex) {
-    const rules = rulesOf(round);
+  init({ round, questions, seats, roundIndex }) {
+    const rules = rulesOf(round!);
     const refs = questions.map((_, i) => `${roundIndex}.${i}`);
     const records: Record<string, QuestionRecord> = {};
     questions.forEach((question, i) => {
@@ -315,14 +345,7 @@ export const warmupPlugin: RoundPlugin<WarmupState> = {
             MatchErrorCode.InvalidState,
           );
         }
-        if (q.part === 'individual') {
-          q.phase = 'answering';
-          q.answeringSeat = q.ownerSeat;
-          q.startedAt = ctx.now;
-          ctx.startTimer('answer', state.rules.individual.timeSeconds * 1000);
-        } else {
-          openBuzzer(ctx, state, q);
-        }
+        startQuestion(ctx, state, q);
         return;
       }
       case 'judge':
@@ -463,6 +486,12 @@ export const warmupPlugin: RoundPlugin<WarmupState> = {
 
   timer(ctx, state, purpose) {
     const q = state.current ? state.questions[state.current] : undefined;
+    if (purpose === 'auto') {
+      // Bước chờ của chế độ tự động: hết thời gian đọc → bắt đầu; hết thời gian xem đáp án → câu sau.
+      if (q?.phase === 'showing') startQuestion(ctx, state, q);
+      else if ((!q || FINAL_PHASES.has(q.phase)) && state.part !== 'done') moveToNext(state, ctx);
+      return;
+    }
     if (!q) return;
     if (purpose === 'answer' && q.phase === 'answering') {
       q.phase = 'judging';
@@ -472,6 +501,44 @@ export const warmupPlugin: RoundPlugin<WarmupState> = {
       q.answeringSeat = null;
       ctx.log(`${questionLabel(state, q, ctx)}: không ai giành quyền`);
     }
+  },
+
+  auto(ctx, state) {
+    if (ctx.timer()) return false;
+    const q = state.current ? state.questions[state.current] : undefined;
+    if (!q) {
+      if (state.part === 'done') return false;
+      moveToNext(state, ctx);
+      return true;
+    }
+    const { readMs, revealMs } = autoDelays(ctx.settings);
+    if (q.phase === 'showing') {
+      ctx.startTimer('auto', readMs);
+      return false;
+    }
+    if (q.phase === 'judging') {
+      const verdict = autoVerdict(state, q);
+      if (verdict === null || q.answeringSeat === null) return false;
+      judge(ctx, state, q.answeringSeat, verdict, 'system');
+      return true;
+    }
+    if (FINAL_PHASES.has(q.phase)) {
+      ctx.startTimer('auto', revealMs);
+    }
+    return false;
+  },
+
+  awaitingHost(state) {
+    const q = state.current ? state.questions[state.current] : undefined;
+    if (!q) return false;
+    if (state.rules.answerMode === 'verbal' && (q.phase === 'answering' || q.phase === 'judging')) {
+      return true;
+    }
+    return q.phase === 'judging' && autoVerdict(state, q) === null;
+  },
+
+  spare(state) {
+    return state.reserves.map((ref) => state.questions[ref]!.question);
   },
 
   finished(state) {
