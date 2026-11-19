@@ -4,6 +4,7 @@ import {
   type HostCommand,
   type MatchView,
   type PlayerAnswer,
+  type PlayerChoice,
   RealtimeConnectError,
   type RoomReaction,
   type RoomRemovedReason,
@@ -42,6 +43,8 @@ export interface RoomChannel {
   sendCommand: (command: HostCommand) => Promise<string | null>;
   sendAnswer: (questionRef: string, answer: PlayerAnswer) => Promise<Ack<{ elapsedMs: number }>>;
   buzz: (questionRef: string) => Promise<Ack<{ won: boolean }>>;
+  /** Player chọn hàng ngang / gói câu hỏi; trả thông báo lỗi hoặc `null`. */
+  choose: (choice: PlayerChoice) => Promise<string | null>;
   /** Kết nối lại ngay (nút "Thử kết nối lại ngay", hoặc dùng lại tab sau khi bị thay thế). */
   reconnect: () => void;
   sendReaction: (emoji: string) => Promise<string | null>;
@@ -289,6 +292,28 @@ export function useRoomChannel(roomId: string): RoomChannel {
     [roomId],
   );
 
+  const choose = useCallback(
+    (choice: PlayerChoice) =>
+      new Promise<string | null>((resolve) => {
+        const socket = socketRef.current;
+        if (!socket?.connected) {
+          resolve(offlineAck.error.message);
+          return;
+        }
+        socket
+          .timeout(ACTION_TIMEOUT_MS)
+          .emit(
+            'match:choose',
+            { roomId, actionId: crypto.randomUUID(), choice },
+            (err, result) => {
+              if (err) resolve('Máy chủ không phản hồi, hãy thử lại.');
+              else resolve(result.ok ? null : result.error.message);
+            },
+          );
+      }),
+    [roomId],
+  );
+
   const dismissMatch = useCallback(() => setMatch(null), []);
 
   return {
@@ -304,6 +329,7 @@ export function useRoomChannel(roomId: string): RoomChannel {
     sendCommand,
     sendAnswer,
     buzz,
+    choose,
     reconnect,
     sendReaction,
   };

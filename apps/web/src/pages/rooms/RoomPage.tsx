@@ -146,7 +146,11 @@ function Room({ roomId }: { roomId: string }) {
           view={match}
           room={state}
           clockOffset={channel.clockOffset}
-          actions={{ sendAnswer: channel.sendAnswer, buzz: channel.buzz }}
+          actions={{
+            sendAnswer: channel.sendAnswer,
+            buzz: channel.buzz,
+            choose: channel.choose,
+          }}
         />
       ) : (
         <SpectatorMatch

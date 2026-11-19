@@ -3,6 +3,7 @@ import { CreateIdentityTables1794970000000 } from './1794970000000-CreateIdentit
 import { CreateRoomTables1794980000000 } from './1794980000000-CreateRoomTables';
 import { CreateQuestionBankTables1794990000000 } from './1794990000000-CreateQuestionBankTables';
 import { CreateMatchTables1795000000000 } from './1795000000000-CreateMatchTables';
+import { MatchEndReasonCompleted1795010000000 } from './1795010000000-MatchEndReasonCompleted';
 
 /** Danh sách migration theo thứ tự; thêm migration mới vào cuối. */
 export const migrations = [
@@ -11,4 +12,5 @@ export const migrations = [
   CreateRoomTables1794980000000,
   CreateQuestionBankTables1794990000000,
   CreateMatchTables1795000000000,
+  MatchEndReasonCompleted1795010000000,
 ];

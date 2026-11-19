@@ -395,6 +395,8 @@ export function createMatchRuntime(deps: MatchRuntimeDeps) {
       await store.setState(state);
       await store.activate(state.roomId, state.matchId);
       await store.claimLease(state.matchId, instanceId, leaseMs);
+      // Chế độ tự động có đồng hồ ngay từ đầu (thời gian đọc câu 1).
+      schedule(state);
       await publish(state);
     },
 

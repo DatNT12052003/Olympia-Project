@@ -11,7 +11,6 @@ import type { RoundType } from './scripts.js';
 export const MatchErrorCode = {
   ScriptMissing: 'MATCH_SCRIPT_MISSING',
   ScriptInvalid: 'MATCH_SCRIPT_INVALID',
-  AutoModeUnsupported: 'MATCH_AUTO_MODE_UNSUPPORTED',
   NotEnoughPlayers: 'MATCH_NOT_ENOUGH_PLAYERS',
   PlayersNotReady: 'MATCH_PLAYERS_NOT_READY',
   AlreadyRunning: 'MATCH_ALREADY_RUNNING',
@@ -48,6 +47,24 @@ export type PlayerAnswer = z.infer<typeof playerAnswerSchema>;
 
 const seatSchema = z.number().int().min(1).max(4);
 
+/**
+ * Lựa chọn của Player đến lượt (Host chọn thay được): hàng ngang ở vòng Vượt chướng ngại vật, gói
+ * câu hỏi và Ngôi sao hy vọng ở vòng Về đích.
+ */
+export const playerChoiceSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('row'), row: z.number().int().min(1).max(8) }),
+  z.object({
+    type: z.literal('pack'),
+    /** Mức điểm của từng câu trong gói, theo thứ tự. */
+    levels: z.array(z.number().int().min(1).max(1000)).min(1).max(6),
+    /** Câu dùng Ngôi sao hy vọng (chỉ số từ 0), `null` nếu không dùng. */
+    star: z.number().int().min(0).max(5).nullable(),
+  }),
+  /** Đổi câu dùng Ngôi sao hy vọng trước khi câu đó hiển thị. */
+  z.object({ type: z.literal('star'), star: z.number().int().min(0).max(5).nullable() }),
+]);
+export type PlayerChoice = z.infer<typeof playerChoiceSchema>;
+
 /** Lệnh của Host (8.3, 8.5). Lệnh vòng thi do plugin của vòng xử lý (DL-012). */
 export const hostCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('pause') }),
@@ -78,8 +95,25 @@ export const hostCommandSchema = z.discriminatedUnion('type', [
     seat: seatSchema,
     correct: z.boolean(),
   }),
+  /** Công bố kết quả câu cùng trả lời (hàng ngang, Tăng tốc): áp điểm theo kết quả đã chấm. */
+  z.object({ type: z.literal('reveal') }),
+  /** Chọn thay Player đến lượt (hàng ngang, gói câu hỏi). */
+  z.object({ type: z.literal('choose'), choice: playerChoiceSchema }),
+  /** Vượt chướng ngại vật: chấm lượt đoán từ khóa, mở ô trung tâm/mảnh ảnh, công bố từ khóa. */
+  z.object({ type: z.literal('judge_keyword'), seat: seatSchema, correct: z.boolean() }),
+  z.object({ type: z.literal('open_center') }),
+  z.object({ type: z.literal('open_piece'), piece: z.number().int().min(1).max(9) }),
+  z.object({ type: z.literal('reveal_keyword') }),
+  /** Đóng chuông giành quyền (không ai giành quyền). */
+  z.object({ type: z.literal('close_buzz') }),
 ]);
 export type HostCommand = z.infer<typeof hostCommandSchema>;
+
+export const matchChoicePayloadSchema = z.object({
+  roomId: z.uuid(),
+  actionId: z.uuid(),
+  choice: playerChoiceSchema,
+});
 
 export const matchCommandPayloadSchema = z.object({
   roomId: z.uuid(),
@@ -131,6 +165,11 @@ export interface MatchTimerView {
   durationMs: number;
   /** Thời gian còn lại khi tạm dừng (BR-GAME-04). */
   remainingMs: number | null;
+  /**
+   * Mục đích: `answer` (trả lời), `buzz` (chuông), `choose` (chọn hàng/gói), `auto` (chế độ tự
+   * động chờ bước tiếp theo), `break` (nghỉ giữa vòng).
+   */
+  purpose: string;
 }
 
 export interface SeatAnswerView {
@@ -142,6 +181,10 @@ export interface SeatAnswerView {
   elapsedMs: number | null;
   /** Kết quả chấm tự động gợi ý cho Host. */
   suggested: 'correct' | 'wrong' | null;
+  /** Host đã chấm (trước khi công bố) ở câu cùng trả lời; chỉ Host thấy. */
+  verdict?: 'correct' | 'wrong' | null;
+  /** Điểm đã nhận ở câu này (sau khi công bố). */
+  points?: number | null;
 }
 
 export interface MatchQuestionView {
@@ -187,7 +230,133 @@ export interface WarmupView {
   reserves: number;
 }
 
-export type RoundView = WarmupView;
+/** Một ô (hàng ngang hoặc ô trung tâm) của bảng chướng ngại vật. */
+export interface ObstacleRowView {
+  /** Số thứ tự từ 1; ô trung tâm là `rowCount + 1`. */
+  index: number;
+  kind: 'row' | 'center';
+  /** Số ký tự của đáp án (không tính khoảng trắng). */
+  letters: number;
+  /**
+   * `closed`: chưa mở; `active`: đang thi; `solved`: có người đúng; `unsolved`: không ai đúng;
+   * `voided`: Host hủy.
+   */
+  status: 'closed' | 'active' | 'solved' | 'unsolved' | 'voided';
+  /** Nội dung hàng: Host luôn thấy; người khác khi hàng đã mở. */
+  content: string | null;
+  /** Đáp án: Host luôn thấy; người khác khi đã công bố. */
+  answer: string | null;
+  correctCount: number;
+}
+
+export interface ObstacleGuessView {
+  seat: number;
+  /** Nội dung đoán: Host thấy ngay; người khác khi đã chấm. */
+  text: string | null;
+  state: 'pending' | 'correct' | 'wrong' | 'cancelled';
+  /** Điểm CNV nếu đúng (tính theo số hàng đã mở lúc bấm chuông). */
+  points: number;
+  /** Gợi ý chấm tự động cho Host. */
+  suggested: 'correct' | 'wrong' | null;
+}
+
+export interface ObstacleView {
+  type: 'obstacle';
+  /**
+   * `choosing`: chờ chọn hàng; `row`: đang thi một hàng; `keyword`: hết hàng, chỉ còn đoán từ
+   * khóa; `done`: đã giải hoặc công bố từ khóa.
+   */
+  phase: 'choosing' | 'row' | 'keyword' | 'done';
+  /** Player đến lượt chọn hàng (khi chọn theo lượt). */
+  turnSeat: number | null;
+  rowSelection: 'player' | 'order';
+  rows: ObstacleRowView[];
+  /** Mảnh ảnh đã mở, theo thứ tự ô (cùng độ dài `rows`). */
+  pieces: boolean[];
+  image: MediaView | null;
+  keyword: {
+    ref: string;
+    letters: number;
+    /** Host luôn thấy; người khác khi đã giải/công bố. */
+    answer: string | null;
+    solvedBy: number | null;
+    revealed: boolean;
+    /** Điểm nếu giải được lúc này. */
+    points: number;
+  };
+  /** Hàng đang thi (câu hỏi kèm câu trả lời theo ghế). */
+  question: MatchQuestionView | null;
+  currentRow: number | null;
+  guesses: ObstacleGuessView[];
+  /** Ghế bị loại khỏi phần còn lại của vòng (đoán sai từ khóa). */
+  outSeats: number[];
+}
+
+export interface AccelerationView {
+  type: 'acceleration';
+  questionNo: number;
+  questionTotal: number;
+  question: MatchQuestionView | null;
+  rankPoints: number[];
+  allowResubmit: boolean;
+  /** Chỉ Host: số câu dự phòng còn lại. */
+  reserves: number;
+}
+
+export interface FinishPackItemView {
+  points: number;
+  seconds: number;
+  star: boolean;
+  /** Kết quả của câu trong gói. */
+  state: 'pending' | 'current' | 'correct' | 'wrong' | 'stolen' | 'skipped' | 'voided';
+}
+
+export interface FinishView {
+  type: 'finish';
+  /** `picking`: Player đến lượt chọn gói; `playing`: đang thi gói; `done`: hết lượt. */
+  phase: 'picking' | 'playing' | 'done';
+  answerMode: 'device' | 'verbal';
+  /** Thứ tự thi (ghế) và vị trí lượt hiện tại. */
+  order: number[];
+  turn: number;
+  turnSeat: number | null;
+  levels: { points: number; seconds: number }[];
+  questionsPerPlayer: number;
+  starEnabled: boolean;
+  pack: FinishPackItemView[] | null;
+  questionNo: number;
+  question: MatchQuestionView | null;
+  /** Phần giành quyền của câu hiện tại. */
+  steal: {
+    open: boolean;
+    winnerSeat: number | null;
+    attemptedSeats: number[];
+    /** Điểm đúng / bị trừ khi sai. */
+    points: number;
+    penalty: number;
+  } | null;
+  stealEnabled: boolean;
+  /** Chỉ Host: số câu còn lại theo mức điểm. */
+  available: Record<string, number>;
+}
+
+/** Câu hỏi phụ khi hòa điểm (9.3, DL-044). */
+export interface TiebreakView {
+  type: 'tiebreak';
+  /** Ghế đang hòa điểm dẫn đầu. */
+  seats: number[];
+  questionNo: number;
+  question: MatchQuestionView | null;
+  buzz: { open: boolean; winnerSeat: number | null; attemptedSeats: number[] } | null;
+  winnerSeat: number | null;
+  /** Hết câu hỏi phụ mà chưa phân thắng thua: đồng hạng. */
+  exhausted: boolean;
+}
+
+export type RoundView = WarmupView | ObstacleView | AccelerationView | FinishView | TiebreakView;
+
+/** Loại vòng trong trận: bốn vòng của kịch bản và câu hỏi phụ. */
+export type MatchRoundType = RoundType | 'tiebreak';
 
 export interface MatchLogEntry {
   at: number;
@@ -202,13 +371,25 @@ export interface MatchView {
   audience: 'host' | 'player' | 'spectator';
   /** Ghế của người xem (Player). */
   mySeat: number | null;
+  /** Chế độ điều khiển (8.3, 8.4). */
+  mode: 'manual' | 'auto';
   status: MatchStatus;
-  endReason: 'host' | 'abnormal' | null;
+  /** `completed`: trận kết thúc sau vòng cuối; `host`: Host kết thúc sớm. */
+  endReason: 'completed' | 'host' | 'abnormal' | null;
   pause: { reason: 'host' | 'host_disconnected' | 'player_disconnected'; since: number } | null;
-  rounds: { type: RoundType; title: string }[];
+  rounds: { type: MatchRoundType; title: string }[];
   roundIndex: number;
   /** Vòng hiện tại đã hết câu. */
   roundFinished: boolean;
+  /**
+   * Bước tiếp theo khi vòng hiện tại kết thúc: sang vòng sau, câu hỏi phụ (hòa điểm) hoặc kết
+   * thúc trận.
+   */
+  nextStep: 'round' | 'tiebreak' | 'finish';
+  /** Chế độ tự động đang chờ Host xác nhận (BR-GAME-05). */
+  awaitingHost: boolean;
+  /** Người thắng câu hỏi phụ. */
+  tiebreakWinner: number | null;
   players: MatchPlayerView[];
   timer: MatchTimerView | null;
   round: RoundView;
@@ -262,4 +443,9 @@ export function describeCorrectAnswer(answer: QuestionAnswer): string {
     case 'short_answer':
       return answer.answer;
   }
+}
+
+/** Số ký tự của đáp án hiển thị trên bảng chướng ngại vật (bỏ khoảng trắng). */
+export function letterCount(text: string): number {
+  return text.replace(/\s+/g, '').length;
 }

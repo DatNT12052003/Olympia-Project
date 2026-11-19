@@ -431,13 +431,11 @@ function RoomForm({ room }: { room?: HostRoom }) {
               onChange={(event) => set('scriptId', event.target.value)}
               error={errors.scriptId}
               hint={
-                values.controlMode === 'auto'
-                  ? 'Chế độ tự động sẽ có ở phiên bản sau; hiện chỉ bắt đầu được trận ở chế độ Thủ công.'
-                  : selectedScript && selectedScript.supportedPlayers < values.maxPlayers
-                    ? selectedScript.supportedPlayers < MIN_PLAYERS
-                      ? 'Kịch bản chưa đủ câu hỏi để bắt đầu trận.'
-                      : `Kịch bản chỉ đủ câu hỏi cho tối đa ${selectedScript.supportedPlayers} người chơi.`
-                    : undefined
+                selectedScript && selectedScript.supportedPlayers < values.maxPlayers
+                  ? selectedScript.supportedPlayers < MIN_PLAYERS
+                    ? 'Kịch bản chưa đủ câu hỏi để bắt đầu trận.'
+                    : `Kịch bản chỉ đủ câu hỏi cho tối đa ${selectedScript.supportedPlayers} người chơi.`
+                  : undefined
               }
             >
               <option value="">Chưa chọn kịch bản</option>

@@ -56,9 +56,14 @@
 | DL-035 | 2026-11-18 | Kiến trúc  | Upload media trực tiếp lên object storage qua presigned URL                | Đã chấp nhận    |
 | DL-036 | 2026-11-18 | Nghiệp vụ  | Màn kiểm duyệt bộ public làm ở P2 (board Moderation ghi P7)                | Đã chấp nhận    |
 | DL-037 | 2026-11-19 | Nghiệp vụ  | Kịch bản là tài nguyên dùng lại của Host; phòng tham chiếu kịch bản        | Đã chấp nhận    |
-| DL-038 | 2026-11-19 | Nghiệp vụ  | P4 chỉ mở vòng Khởi động và chế độ thủ công                                | Đã chấp nhận    |
+| DL-038 | 2026-11-19 | Nghiệp vụ  | P4 chỉ mở vòng Khởi động và chế độ thủ công                                | Bị thay thế (DL-041) |
 | DL-039 | 2026-11-19 | Nghiệp vụ  | Chế độ thủ công: Host xác nhận mọi câu, hệ thống chỉ gợi ý kết quả chấm    | Đã chấp nhận    |
 | DL-040 | 2026-11-19 | Nghiệp vụ  | Câu hỏi của vòng = câu xếp vào nhóm vòng đó trong bộ đề; câu dư là dự phòng | Đã chấp nhận    |
+| DL-041 | 2026-11-19 | Nghiệp vụ  | Vượt chướng ngại vật: thứ tự câu trong bộ đề, đoán từ khóa bằng chuông + nhập chữ | Đã chấp nhận    |
+| DL-042 | 2026-11-19 | Nghiệp vụ  | Câu cùng trả lời (hàng ngang, Tăng tốc): Host chấm từng người rồi công bố   | Đã chấp nhận    |
+| DL-043 | 2026-11-19 | Nghiệp vụ  | Về đích: câu theo "Điểm mặc định", sao đặt khi chọn gói, giành quyền 1 lượt | Đã chấp nhận    |
+| DL-044 | 2026-11-19 | Nghiệp vụ  | Câu hỏi phụ dùng câu chưa dùng của trận; không cộng điểm                  | Đã chấp nhận    |
+| DL-045 | 2026-11-19 | Kiến trúc  | Chế độ tự động: plugin tự đi bước kế qua đồng hồ `auto`, engine nghỉ giữa vòng | Đã chấp nhận    |
 
 ---
 
@@ -245,6 +250,8 @@
 
 ### DL-038 – P4 chỉ mở vòng Khởi động và chế độ thủ công
 
+> **Bị thay thế** ở P5: cả bốn vòng và chế độ tự động đã chơi được (DL-041…DL-045).
+
 - **Quyết định:** ScriptBuilder chỉ cho thêm vòng Khởi động; ba vòng còn lại hiện "sắp có" (P5 đăng ký plugin). Phòng ở chế độ Tự động không bắt đầu được trận (lỗi `MATCH_AUTO_MODE_UNSUPPORTED`) cho tới P5.
 - **Hệ quả:** Schema kịch bản vẫn là union theo loại vòng; thêm vòng không cần sửa engine.
 
@@ -258,6 +265,35 @@
 
 - **Quyết định:** Vòng dùng các câu được xếp vào nhóm của vòng đó trong bộ đề (5.3), theo thứ tự: phần thi riêng chia lần lượt cho từng ghế, sau đó phần thi chung; câu dư làm câu dự phòng cho "Hủy câu" (8.5). Bộ public được chọn mới phải đang được duyệt; phiên bản đã chọn trước vẫn dùng được khi bị thay/gỡ (BR-QB-07).
 - **Hệ quả:** Kiểm tra đủ câu (BR-SCRIPT-01) theo số người chơi thật khi bắt đầu trận; ScriptBuilder báo số người chơi tối đa nguồn đủ câu.
+
+### DL-041 – Vượt chướng ngại vật: dữ liệu và luồng
+
+- **Bối cảnh:** Ngân hàng câu hỏi chỉ có câu hỏi đơn (DL-034), không có kiểu "bảng CNV". BR-SCRIPT-01 yêu cầu vòng có từ khóa và các hàng gợi ý. Board PlayerDesktopObstacle cho Player "Bấm chuông trả lời CNV"; board HostControlObstacle cho Host thấy chữ Player đã nhập kèm gợi ý so khớp.
+- **Quyết định:** Câu của nhóm "Vượt chướng ngại vật" trong bộ đề theo thứ tự: câu 1 là từ khóa (media của câu là ảnh nền), tiếp theo là các hàng ngang (mặc định 4), cuối cùng là ô trung tâm (nếu bật). Mọi câu phải là trả lời ngắn; kiểm tra khi bắt đầu trận. Số ký tự hiển thị bỏ khoảng trắng. Hàng ngang: Player đến lượt chọn (hoặc mở theo thứ tự, cấu hình), mọi Player còn thi cùng ghi đáp án và được sửa tới khi hết giờ. Đoán từ khóa = gửi chữ cho câu từ khóa bất kỳ lúc nào, mỗi Player một lần. Điểm tính theo số hàng đã mở lúc server nhận (`keywordStartPoints − keywordStep × (hàng − 1)`, không thấp hơn điểm ô trung tâm). Host luôn xác nhận từ khóa (BR-R2-01, cả ở chế độ tự động). Đúng: kết thúc vòng, mở toàn bộ ảnh; sai: bị loại khỏi phần còn lại của vòng. Hủy hàng không có câu thay thế (bảng là một bộ), chỉ hoàn điểm và mở mảnh ảnh.
+- **Hệ quả:** Ảnh nền được gửi cho mọi người xem và che mảnh ở client; người dùng thành thạo có thể xem ảnh gốc qua công cụ trình duyệt. Nếu cần chặn hẳn, phải cắt ảnh theo mảnh ở server (để sau).
+
+### DL-042 – Câu cùng trả lời: Host chấm từng người rồi công bố
+
+- **Bối cảnh:** Board HostControlAcceleration/HostControlObstacle có bảng câu trả lời theo người, nút "Chấm lại", "Công bố đáp án/kết quả hàng".
+- **Quyết định:** Ở hàng ngang và Tăng tốc, hết giờ (hoặc mọi người đã gửi khi không cho sửa) thì khóa trả lời; Host chấm Đúng/Sai từng người (mặc định theo gợi ý tự động), rồi "Công bố" mới áp điểm. Tăng tốc xếp hạng theo thời điểm server nhận; người đúng cùng mili-giây nhận cùng mức cao hơn và người kế tiếp lùi hạng theo kiểu "1, 1, 3" (BR-R3-02). Chấm lại tính lại điểm cả câu.
+- **Hệ quả:** Chế độ tự động công bố ngay khi mọi kết quả đã chắc chắn (BR-GAME-05).
+
+### DL-043 – Về đích: gói câu hỏi, Ngôi sao hy vọng, giành quyền
+
+- **Bối cảnh:** 7.4 cho Player chọn mức điểm từng câu; ngân hàng câu hỏi có "Điểm mặc định" (5.1).
+- **Quyết định:** Câu của nhóm "Về đích" được xếp theo "Điểm mặc định" trùng mức điểm; câu chưa có điểm mặc định dùng cho mọi mức; thiếu thì lấy câu của mức khác. Player đặt Ngôi sao hy vọng khi chọn gói (board FinishPick), đổi được trước khi câu có sao hiển thị; tối đa 1 lần mỗi lượt. Thứ tự thi tính theo điểm khi vào vòng (bằng điểm thì theo vị trí). Mỗi câu chỉ một lượt giành quyền; giành quyền đúng nhận điểm câu và (mặc định) trừ đúng số đó của Player chính, kể cả khi Player chính đã bị trừ do Ngôi sao hy vọng; sai bị trừ `wrongPenaltyPercent` % điểm câu. Chế độ tự động: hết 20 giây chưa chọn gói thì chọn mức thấp nhất, không sao.
+- **Hệ quả:** Kiểm tra đủ câu chỉ theo tổng số câu, không theo từng mức.
+
+### DL-044 – Câu hỏi phụ khi hòa điểm
+
+- **Bối cảnh:** 9.3 (mặc định đề xuất) nhưng kịch bản không có nguồn câu hỏi riêng cho câu hỏi phụ.
+- **Quyết định:** Sau vòng cuối, nếu các Player dẫn đầu (chưa bị loại) hòa điểm và kịch bản bật câu hỏi phụ, trận thêm vòng "Câu hỏi phụ" dùng các câu chưa dùng của các vòng trước (câu dự phòng, câu dư). Chỉ người hòa điểm được bấm chuông; đúng đầu tiên thắng; sai thì mở chuông cho người còn lại. Không cộng điểm; người thắng lưu ở `tiebreakWinner`. Hết câu hoặc tắt câu hỏi phụ: đồng hạng. Trận kết thúc sau vòng cuối có lý do `completed` (Host kết thúc giữa chừng là `host`).
+- **Hệ quả:** Muốn có câu hỏi phụ, bộ đề cần có câu dư. Xếp hạng cuối dùng `tiebreakWinner` (P7).
+
+### DL-045 – Chế độ tự động trong engine
+
+- **Quyết định:** Trận ghi chế độ của phòng lúc bắt đầu (`state.mode`). Sau mỗi đầu vào, engine gọi `plugin.auto()`: plugin làm bước tức thì (chấm câu xác định, chuyển câu) hoặc đặt đồng hồ `auto` để chờ (thời gian đọc câu `autoReadSeconds`, xem đáp án `autoRevealSeconds`, mặc định 3 giây) hoặc `choose` (chờ chọn hàng/gói). Vòng hết câu thì engine đặt đồng hồ `break` (`breakSeconds`) rồi chuyển vòng / câu hỏi phụ / kết thúc. Câu cần người chấm làm `awaitingHost` = true và engine dừng lại tới khi Host chấm. Mọi lệnh Host vẫn dùng được (BR-GAME-06); lệnh vòng thi bỏ bước tự động đang chờ để lập lại.
+- **Hệ quả:** Vẫn một đồng hồ mỗi trận; tạm dừng/tiếp tục giữ nguyên thời gian còn lại của cả bước tự động. Thiết lập mới của kịch bản có giá trị mặc định nên kịch bản cũ vẫn dùng được.
 
 ---
 

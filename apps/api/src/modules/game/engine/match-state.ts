@@ -3,7 +3,7 @@ import type {
   MatchStatus,
   PlayerAnswer,
   QuestionAnswer,
-  RoundType,
+  MatchRoundType,
   ScriptRound,
   ScriptSettings,
 } from '@olympia/shared';
@@ -20,6 +20,8 @@ export interface MatchQuestion {
   answer: QuestionAnswer;
   explanation: string | null;
   mediaId: string | null;
+  /** Điểm mặc định của câu (vòng Về đích xếp câu theo mức điểm, DL-043). */
+  defaultPoints?: number | null;
 }
 
 /** Kịch bản và câu hỏi chốt lúc bắt đầu trận (BR-SCRIPT-03). Bất biến trong suốt trận. */
@@ -62,12 +64,14 @@ export interface MatchState {
   /** Tăng sau mỗi thay đổi (BR-RT-03). */
   version: number;
   status: MatchStatus;
-  endReason: 'host' | 'abnormal' | null;
+  endReason: MatchEndReason | null;
+  /** Chế độ điều khiển (8.3, 8.4). Trận tạo trước P5 không có trường này (= thủ công). */
+  mode?: 'manual' | 'auto';
   pause: { reason: PauseReason; since: number } | null;
   /** Host mất kết nối từ lúc nào (4.5: quá hạn thì kết thúc bất thường). */
   hostDisconnectedAt: number | null;
   settings: ScriptSettings;
-  rounds: { type: RoundType; title: string }[];
+  rounds: { type: MatchRoundType; title: string }[];
   roundIndex: number;
   /** Trạng thái riêng của plugin vòng hiện tại. */
   round: unknown;
@@ -76,7 +80,13 @@ export interface MatchState {
   timerSeq: number;
   scoreSeq: number;
   log: MatchLogEntry[];
+  /** Câu chưa dùng của các vòng đã qua, làm câu hỏi phụ (DL-044). */
+  spare?: MatchQuestion[];
+  /** Người thắng câu hỏi phụ (9.3). */
+  tiebreakWinner?: number | null;
 }
+
+export type MatchEndReason = 'completed' | 'host' | 'abnormal';
 
 /** Tác động phụ của một bước xử lý, được ghi bền vào PostgreSQL cùng checkpoint. */
 export type EngineEffect =

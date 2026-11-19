@@ -15,7 +15,12 @@ import {
   type ScriptSettings,
   type SourceInfo,
   supportedPlayersFor,
-  WARMUP_PRESETS,
+  type AccelerationRules,
+  type FinishRules,
+  obstacleKeywordPoints,
+  type ObstacleRules,
+  ROUND_PRESETS,
+  type RoundPreset,
   type WarmupRules,
 } from '@olympia/shared';
 import { type ReactNode, useId, useState } from 'react';
@@ -42,9 +47,14 @@ interface Draft {
 
 const BREAK_OPTIONS = [0, 15, 30, 60, 120];
 
-function newWarmupRound(): ScriptRound {
-  const preset = WARMUP_PRESETS[0]!;
-  return { type: 'warmup', preset: preset.id, source: null, rules: structuredClone(preset.rules) };
+function newRound(type: RoundKey): ScriptRound {
+  const preset = ROUND_PRESETS[type][0]!;
+  return {
+    type,
+    preset: preset.id,
+    source: null,
+    rules: structuredClone(preset.rules),
+  } as ScriptRound;
 }
 
 function sameSource(a: QuestionSource | null, b: QuestionSource | null): boolean {
@@ -64,14 +74,49 @@ function parseSource(value: string): QuestionSource | null {
 }
 
 function roundSummary(round: ScriptRound): string {
-  const r = round.rules;
   const parts: string[] = [];
-  if (r.individual.enabled)
-    parts.push(`${r.individual.questionsPerPlayer} câu/người · ${r.individual.timeSeconds} giây`);
-  if (r.shared.enabled) parts.push(`thi chung ${r.shared.questionCount} câu`);
-  if (r.answerMode === 'verbal') parts.push('trả lời bằng lời');
+  switch (round.type) {
+    case 'warmup': {
+      const r = round.rules;
+      if (r.individual.enabled)
+        parts.push(
+          `${r.individual.questionsPerPlayer} câu/người · ${r.individual.timeSeconds} giây`,
+        );
+      if (r.shared.enabled) parts.push(`thi chung ${r.shared.questionCount} câu`);
+      if (r.answerMode === 'verbal') parts.push('trả lời bằng lời');
+      break;
+    }
+    case 'obstacle': {
+      const r = round.rules;
+      parts.push(`${r.rowCount} hàng${r.centerEnabled ? ' + ô trung tâm' : ''}`);
+      parts.push(`${r.rowSeconds} giây/hàng`);
+      break;
+    }
+    case 'acceleration': {
+      const r = round.rules;
+      parts.push(`${r.questionCount} câu · ${r.timeSeconds} giây`, r.rankPoints.join('/'));
+      break;
+    }
+    case 'finish': {
+      const r = round.rules;
+      parts.push(`${r.questionsPerPlayer} câu/người`, r.levels.map((l) => l.points).join('/'));
+      if (r.answerMode === 'verbal') parts.push('trả lời bằng lời');
+      break;
+    }
+  }
   return parts.join(' · ');
 }
+
+/** Hướng dẫn xếp câu hỏi của vòng trong bộ đề (DL-040…DL-043). */
+const SOURCE_HINTS: Record<RoundKey, string> = {
+  warmup:
+    'Vòng dùng các câu được xếp vào nhóm “Khởi động” trong bộ đề, theo thứ tự. Câu dư làm câu dự phòng.',
+  obstacle:
+    'Theo thứ tự trong nhóm “Vượt chướng ngại vật”: câu 1 là từ khóa CNV (media của câu là ảnh nền), tiếp theo là các hàng ngang, cuối cùng là ô trung tâm. Mọi câu là trả lời ngắn.',
+  acceleration: 'Vòng dùng các câu trong nhóm “Tăng tốc”, theo thứ tự. Câu dư làm câu dự phòng.',
+  finish:
+    'Câu trong nhóm “Về đích” được xếp theo “Điểm mặc định” của câu (ví dụ 20, 30); câu chưa có điểm mặc định dùng cho mọi mức.',
+};
 
 /** Lỗi zod theo đường dẫn "rounds.0.rules.individual.timeSeconds". */
 function issuesByPath(input: unknown): Map<string, string> {
@@ -151,144 +196,87 @@ function Group({ title, children }: { title: ReactNode; children: ReactNode }) {
   );
 }
 
-function WarmupConfig({
-  round,
-  index,
+interface RulesProps<R> {
+  rules: R;
+  setRules: (patch: (draft: R) => void) => void;
+  err: (path: string) => string | undefined;
+}
+
+function AnswerModeField({
+  value,
   onChange,
-  errors,
-  sourceInfo,
 }: {
-  round: ScriptRound;
-  index: number;
-  onChange: (round: ScriptRound) => void;
-  errors: Map<string, string>;
-  sourceInfo: SourceInfo | null | undefined;
+  value: 'device' | 'verbal';
+  onChange: (value: 'device' | 'verbal') => void;
 }) {
-  const sets = useQuestionSets();
-  const publicSets = usePublicSets('');
-  const rules = round.rules;
-  const err = (path: string) => errors.get(`rounds.${index}.rules.${path}`);
-  const preset = WARMUP_PRESETS.find(
-    (p) => p.id === round.preset && JSON.stringify(p.rules) === JSON.stringify(rules),
+  return (
+    <fieldset>
+      <legend className="mb-2 text-sm font-semibold">Hình thức trả lời (phần thi theo lượt)</legend>
+      <div className="flex flex-wrap gap-x-6 gap-y-2">
+        {(
+          [
+            ['device', 'Nhập trên thiết bị (chấm tự động gợi ý)'],
+            ['verbal', 'Trả lời bằng lời (Host chấm)'],
+          ] as const
+        ).map(([mode, label]) => (
+          <label key={mode} className="flex min-h-11 items-center gap-2 text-[15px]">
+            <input
+              type="radio"
+              name="answerMode"
+              checked={value === mode}
+              onChange={() => onChange(mode)}
+              className="size-[18px] accent-brand-600"
+            />
+            {label}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
+}
 
-  const setRules = (patch: (draft: WarmupRules) => void) => {
-    const next = structuredClone(rules);
-    patch(next);
-    onChange({ ...round, rules: next });
-  };
+function SelectBox({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly (readonly [string, string])[];
+}) {
+  const id = useId();
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-[13px] font-semibold">
+        {label}
+      </label>
+      <select
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm"
+      >
+        {options.map(([v, text]) => (
+          <option key={v} value={v}>
+            {text}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
 
-  // Số câu hiện có: bộ đề của mình lấy từ danh sách bộ đề; bộ public lấy từ lần lưu gần nhất.
-  let available: number | null = null;
-  if (round.source?.kind === 'set') {
-    const setId = round.source.setId;
-    const set = sets.data?.find((s) => s.id === setId);
-    available = set ? (set.roundCounts.warmup ?? 0) : (sourceInfo?.available ?? null);
-  } else if (round.source && sourceInfo) {
-    available = sourceInfo.available;
-  }
-  const requirement = roundRequirement(round);
-  const supported =
-    available === null ? null : supportedPlayersFor(available, requirement, MAX_PLAYERS);
+const fieldGrid = 'grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3.5';
 
+function WarmupRulesFields({ rules, setRules, err }: RulesProps<WarmupRules>) {
   return (
     <>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-[13px] font-semibold text-slate-600">Vòng {index + 1}</p>
-          <h2 id="round-config-heading" className="mt-0.5 text-[22px] font-bold">
-            {ROUND_TITLES[round.type]}
-          </h2>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="round-preset" className="text-[13px] font-semibold">
-            Bộ luật (preset)
-          </label>
-          <select
-            id="round-preset"
-            value={preset?.id ?? 'custom'}
-            onChange={(event) => {
-              const chosen = WARMUP_PRESETS.find((p) => p.id === event.target.value);
-              if (chosen)
-                onChange({ ...round, preset: chosen.id, rules: structuredClone(chosen.rules) });
-            }}
-            className="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm"
-          >
-            {WARMUP_PRESETS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-            {!preset && <option value="custom">Tùy chỉnh</option>}
-          </select>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="round-source" className="text-sm font-semibold">
-          Nguồn câu hỏi
-        </label>
-        <select
-          id="round-source"
-          value={sourceValue(round.source)}
-          onChange={(event) => onChange({ ...round, source: parseSource(event.target.value) })}
-          className="h-11 rounded-lg border border-slate-300 bg-white px-3 text-[15px]"
-        >
-          <option value="">Chọn bộ đề…</option>
-          <optgroup label="Bộ đề của tôi">
-            {sets.data?.map((set) => (
-              <option key={set.id} value={`set:${set.id}`}>
-                {set.name} ({set.roundCounts.warmup ?? 0} câu Khởi động)
-              </option>
-            ))}
-          </optgroup>
-          <optgroup label="Bộ câu hỏi public">
-            {publicSets.data?.map((set) => (
-              <option key={set.versionId} value={`public:${set.versionId}`}>
-                {set.name} · {set.ownerName}
-              </option>
-            ))}
-            {round.source?.kind === 'public' &&
-              !publicSets.data?.some(
-                (s) => round.source?.kind === 'public' && s.versionId === round.source.versionId,
-              ) && (
-                <option value={sourceValue(round.source)}>
-                  {sourceInfo?.name ?? 'Bộ public đã chọn'}
-                </option>
-              )}
-          </optgroup>
-        </select>
-        <p className="text-[13px] text-slate-600">
-          Vòng dùng các câu được xếp vào nhóm “Khởi động” trong bộ đề, theo thứ tự. Câu dư làm câu
-          dự phòng.
-        </p>
-      </div>
-
-      <fieldset>
-        <legend className="mb-2 text-sm font-semibold">
-          Hình thức trả lời (phần thi theo lượt)
-        </legend>
-        <div className="flex flex-wrap gap-x-6 gap-y-2">
-          {(
-            [
-              ['device', 'Nhập trên thiết bị (chấm tự động gợi ý)'],
-              ['verbal', 'Trả lời bằng lời (Host chấm)'],
-            ] as const
-          ).map(([value, label]) => (
-            <label key={value} className="flex min-h-11 items-center gap-2 text-[15px]">
-              <input
-                type="radio"
-                name="answerMode"
-                checked={rules.answerMode === value}
-                onChange={() => setRules((r) => (r.answerMode = value))}
-                className="size-[18px] accent-brand-600"
-              />
-              {label}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
+      <AnswerModeField
+        value={rules.answerMode}
+        onChange={(v) => setRules((r) => (r.answerMode = v))}
+      />
       <Group
         title={
           <Toggle
@@ -299,7 +287,7 @@ function WarmupConfig({
         }
       >
         {rules.individual.enabled && (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3.5">
+          <div className={fieldGrid}>
             <NumberField
               label="Số câu mỗi người"
               value={rules.individual.questionsPerPlayer}
@@ -325,7 +313,6 @@ function WarmupConfig({
           <p className="text-[13px] text-orange-800">{err('individual.enabled')}</p>
         )}
       </Group>
-
       <Group
         title={
           <Toggle
@@ -336,7 +323,7 @@ function WarmupConfig({
         }
       >
         {rules.shared.enabled && (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3.5">
+          <div className={fieldGrid}>
             <NumberField
               label="Số câu"
               value={rules.shared.questionCount}
@@ -369,33 +356,369 @@ function WarmupConfig({
               onChange={(v) => setRules((r) => (r.shared.pointsWrong = v))}
               error={err('shared.pointsWrong')}
             />
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="after-wrong" className="text-[13px] font-semibold">
-                Khi trả lời sai
-              </label>
-              <select
-                id="after-wrong"
-                value={rules.shared.afterWrong}
-                onChange={(event) =>
-                  setRules((r) => (r.shared.afterWrong = event.target.value as 'reopen' | 'next'))
-                }
-                className="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm"
-              >
-                <option value="reopen">Mở chuông cho người khác</option>
-                <option value="next">Chuyển câu</option>
-              </select>
-            </div>
+            <SelectBox
+              label="Khi trả lời sai"
+              value={rules.shared.afterWrong}
+              onChange={(v) => setRules((r) => (r.shared.afterWrong = v as 'reopen' | 'next'))}
+              options={[
+                ['reopen', 'Mở chuông cho người khác'],
+                ['next', 'Chuyển câu'],
+              ]}
+            />
           </div>
         )}
       </Group>
+    </>
+  );
+}
+
+function ObstacleRulesFields({ rules, setRules, err }: RulesProps<ObstacleRules>) {
+  const examples = Array.from({ length: Math.max(0, rules.rowCount || 0) }, (_, i) =>
+    obstacleKeywordPoints(rules, i + 1, false),
+  );
+  return (
+    <>
+      <Group title="Bảng chướng ngại vật">
+        <div className={fieldGrid}>
+          <NumberField
+            label="Số hàng ngang"
+            value={rules.rowCount}
+            onChange={(v) => setRules((r) => (r.rowCount = v))}
+            error={err('rowCount')}
+          />
+          <NumberField
+            label="Thời gian mỗi hàng"
+            suffix="giây"
+            value={rules.rowSeconds}
+            onChange={(v) => setRules((r) => (r.rowSeconds = v))}
+            error={err('rowSeconds')}
+          />
+          <NumberField
+            label="Điểm hàng ngang"
+            value={rules.rowPoints}
+            onChange={(v) => setRules((r) => (r.rowPoints = v))}
+            error={err('rowPoints')}
+          />
+          <SelectBox
+            label="Chọn hàng"
+            value={rules.rowSelection}
+            onChange={(v) => setRules((r) => (r.rowSelection = v as 'player' | 'order'))}
+            options={[
+              ['player', 'Lần lượt từng người chơi chọn'],
+              ['order', 'Mở theo thứ tự hàng'],
+            ]}
+          />
+        </div>
+        <Toggle
+          label="Có ô trung tâm (gợi ý cuối)"
+          checked={rules.centerEnabled}
+          onChange={(v) => setRules((r) => (r.centerEnabled = v))}
+        />
+      </Group>
+      <Group title="Điểm chướng ngại vật">
+        <div className={fieldGrid}>
+          <NumberField
+            label="Sau 1 hàng"
+            value={rules.keywordStartPoints}
+            onChange={(v) => setRules((r) => (r.keywordStartPoints = v))}
+            error={err('keywordStartPoints')}
+          />
+          <NumberField
+            label="Giảm mỗi hàng mở thêm"
+            value={rules.keywordStep}
+            onChange={(v) => setRules((r) => (r.keywordStep = v))}
+            error={err('keywordStep')}
+          />
+          <NumberField
+            label="Sau ô trung tâm"
+            value={rules.keywordCenterPoints}
+            onChange={(v) => setRules((r) => (r.keywordCenterPoints = v))}
+            error={err('keywordCenterPoints')}
+          />
+        </div>
+        <p className="text-[13px] text-slate-600">
+          Điểm theo số hàng đã mở: {examples.join(' / ')}
+          {rules.centerEnabled ? ` / ô trung tâm ${rules.keywordCenterPoints}` : ''}. Đoán sai bị
+          loại khỏi phần còn lại của vòng.
+        </p>
+      </Group>
+    </>
+  );
+}
+
+function AccelerationRulesFields({ rules, setRules, err }: RulesProps<AccelerationRules>) {
+  return (
+    <Group title="Luật vòng">
+      <div className={fieldGrid}>
+        <NumberField
+          label="Số câu"
+          value={rules.questionCount}
+          onChange={(v) => setRules((r) => (r.questionCount = v))}
+          error={err('questionCount')}
+        />
+        <NumberField
+          label="Thời gian mỗi câu"
+          suffix="giây"
+          value={rules.timeSeconds}
+          onChange={(v) => setRules((r) => (r.timeSeconds = v))}
+          error={err('timeSeconds')}
+        />
+      </div>
+      <div className={fieldGrid}>
+        {rules.rankPoints.map((value, i) => (
+          <NumberField
+            key={i}
+            label={`Điểm người đúng thứ ${i + 1}`}
+            value={value}
+            onChange={(v) => setRules((r) => (r.rankPoints[i] = v))}
+            error={err(`rankPoints.${i}`)}
+          />
+        ))}
+      </div>
+      <Toggle
+        label="Cho gửi lại để sửa đáp án (thời gian tính theo lần gửi cuối)"
+        checked={rules.allowResubmit}
+        onChange={(v) => setRules((r) => (r.allowResubmit = v))}
+      />
+    </Group>
+  );
+}
+
+function FinishRulesFields({ rules, setRules, err }: RulesProps<FinishRules>) {
+  return (
+    <>
+      <AnswerModeField
+        value={rules.answerMode}
+        onChange={(v) => setRules((r) => (r.answerMode = v))}
+      />
+      <Group title="Gói câu hỏi">
+        <div className={fieldGrid}>
+          <NumberField
+            label="Số câu mỗi người"
+            value={rules.questionsPerPlayer}
+            onChange={(v) => setRules((r) => (r.questionsPerPlayer = v))}
+            error={err('questionsPerPlayer')}
+          />
+          <SelectBox
+            label="Thứ tự thi"
+            value={rules.order}
+            onChange={(v) => setRules((r) => (r.order = v as 'score_asc' | 'seat'))}
+            options={[
+              ['score_asc', 'Điểm thấp thi trước'],
+              ['seat', 'Theo vị trí'],
+            ]}
+          />
+        </div>
+        {rules.levels.map((level, i) => (
+          <div key={i} className={fieldGrid}>
+            <NumberField
+              label={`Mức ${i + 1}: điểm`}
+              value={level.points}
+              onChange={(v) => setRules((r) => (r.levels[i]!.points = v))}
+              error={err(`levels.${i}.points`)}
+            />
+            <NumberField
+              label={`Mức ${i + 1}: thời gian`}
+              suffix="giây"
+              value={level.seconds}
+              onChange={(v) => setRules((r) => (r.levels[i]!.seconds = v))}
+              error={err(`levels.${i}.seconds`)}
+            />
+          </div>
+        ))}
+        {err('levels') && <p className="text-[13px] text-orange-800">{err('levels')}</p>}
+        <Toggle
+          label="Ngôi sao hy vọng (đúng ×2, sai trừ điểm câu)"
+          checked={rules.starEnabled}
+          onChange={(v) => setRules((r) => (r.starEnabled = v))}
+        />
+      </Group>
+      <Group
+        title={
+          <Toggle
+            label="Giành quyền khi Player chính sai/hết giờ"
+            checked={rules.steal.enabled}
+            onChange={(v) => setRules((r) => (r.steal.enabled = v))}
+          />
+        }
+      >
+        {rules.steal.enabled && (
+          <>
+            <div className={fieldGrid}>
+              <NumberField
+                label="Thời gian bấm chuông"
+                suffix="giây"
+                value={rules.steal.buzzSeconds}
+                onChange={(v) => setRules((r) => (r.steal.buzzSeconds = v))}
+                error={err('steal.buzzSeconds')}
+              />
+              <NumberField
+                label="Thời gian trả lời"
+                suffix="giây"
+                value={rules.steal.answerSeconds}
+                onChange={(v) => setRules((r) => (r.steal.answerSeconds = v))}
+                error={err('steal.answerSeconds')}
+              />
+              <NumberField
+                label="Sai bị trừ"
+                suffix="% điểm câu"
+                value={rules.steal.wrongPenaltyPercent}
+                onChange={(v) => setRules((r) => (r.steal.wrongPenaltyPercent = v))}
+                error={err('steal.wrongPenaltyPercent')}
+              />
+            </div>
+            <Toggle
+              label="Đúng thì lấy điểm từ Player chính"
+              checked={rules.steal.takeFromMain}
+              onChange={(v) => setRules((r) => (r.steal.takeFromMain = v))}
+            />
+          </>
+        )}
+      </Group>
+    </>
+  );
+}
+
+function RoundConfig({
+  round,
+  index,
+  onChange,
+  errors,
+  sourceInfo,
+}: {
+  round: ScriptRound;
+  index: number;
+  onChange: (round: ScriptRound) => void;
+  errors: Map<string, string>;
+  sourceInfo: SourceInfo | null | undefined;
+}) {
+  const sets = useQuestionSets();
+  const publicSets = usePublicSets('');
+  const err = (path: string) => errors.get(`rounds.${index}.rules.${path}`);
+  const presets: readonly RoundPreset<unknown>[] = ROUND_PRESETS[round.type];
+  const preset = presets.find(
+    (p) => p.id === round.preset && JSON.stringify(p.rules) === JSON.stringify(round.rules),
+  );
+
+  function setRules<R>(patch: (draft: R) => void) {
+    const next = structuredClone(round.rules) as R;
+    patch(next);
+    onChange({ ...round, rules: next } as ScriptRound);
+  }
+
+  // Số câu hiện có: bộ đề của mình lấy từ danh sách bộ đề; bộ public lấy từ lần lưu gần nhất.
+  let available: number | null = null;
+  if (round.source?.kind === 'set') {
+    const setId = round.source.setId;
+    const set = sets.data?.find((s) => s.id === setId);
+    available = set ? (set.roundCounts[round.type] ?? 0) : (sourceInfo?.available ?? null);
+  } else if (round.source && sourceInfo) {
+    available = sourceInfo.available;
+  }
+  const requirement = roundRequirement(round);
+  const supported =
+    available === null ? null : supportedPlayersFor(available, requirement, MAX_PLAYERS);
+
+  return (
+    <>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-[13px] font-semibold text-slate-600">Vòng {index + 1}</p>
+          <h2 id="round-config-heading" className="mt-0.5 text-[22px] font-bold">
+            {ROUND_TITLES[round.type]}
+          </h2>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="round-preset" className="text-[13px] font-semibold">
+            Bộ luật (preset)
+          </label>
+          <select
+            id="round-preset"
+            value={preset?.id ?? 'custom'}
+            onChange={(event) => {
+              const chosen = presets.find((p) => p.id === event.target.value);
+              if (chosen)
+                onChange({
+                  ...round,
+                  preset: chosen.id,
+                  rules: structuredClone(chosen.rules),
+                } as ScriptRound);
+            }}
+            className="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm"
+          >
+            {presets.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+            {!preset && <option value="custom">Tùy chỉnh</option>}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="round-source" className="text-sm font-semibold">
+          Nguồn câu hỏi
+        </label>
+        <select
+          id="round-source"
+          value={sourceValue(round.source)}
+          onChange={(event) => onChange({ ...round, source: parseSource(event.target.value) })}
+          className="h-11 rounded-lg border border-slate-300 bg-white px-3 text-[15px]"
+        >
+          <option value="">Chọn bộ đề…</option>
+          <optgroup label="Bộ đề của tôi">
+            {sets.data?.map((set) => (
+              <option key={set.id} value={`set:${set.id}`}>
+                {set.name} ({set.roundCounts[round.type] ?? 0} câu {ROUND_TITLES[round.type]})
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Bộ câu hỏi public">
+            {publicSets.data?.map((set) => (
+              <option key={set.versionId} value={`public:${set.versionId}`}>
+                {set.name} · {set.ownerName}
+              </option>
+            ))}
+            {round.source?.kind === 'public' &&
+              !publicSets.data?.some(
+                (s) => round.source?.kind === 'public' && s.versionId === round.source.versionId,
+              ) && (
+                <option value={sourceValue(round.source)}>
+                  {sourceInfo?.name ?? 'Bộ public đã chọn'}
+                </option>
+              )}
+          </optgroup>
+        </select>
+        <p className="text-[13px] text-slate-600">{SOURCE_HINTS[round.type]}</p>
+      </div>
+
+      {round.type === 'warmup' && (
+        <WarmupRulesFields rules={round.rules} setRules={setRules<WarmupRules>} err={err} />
+      )}
+      {round.type === 'obstacle' && (
+        <ObstacleRulesFields rules={round.rules} setRules={setRules<ObstacleRules>} err={err} />
+      )}
+      {round.type === 'acceleration' && (
+        <AccelerationRulesFields
+          rules={round.rules}
+          setRules={setRules<AccelerationRules>}
+          err={err}
+        />
+      )}
+      {round.type === 'finish' && (
+        <FinishRulesFields rules={round.rules} setRules={setRules<FinishRules>} err={err} />
+      )}
 
       <div className="flex flex-col gap-1 border-t border-slate-100 pt-4">
         <h3 className="text-[15px] font-bold">Câu hỏi của vòng</h3>
         <p className="text-sm text-slate-700">
-          Cần {requirement.fixed > 0 && `${requirement.fixed} câu thi chung`}
+          Cần {requirement.fixed > 0 && `${requirement.fixed} câu`}
           {requirement.fixed > 0 && requirement.perPlayer > 0 && ' + '}
-          {requirement.perPlayer > 0 && `${requirement.perPlayer} câu cho mỗi người chơi`} (4 người:{' '}
-          {requirement.fixed + requirement.perPlayer * MAX_PLAYERS} câu).
+          {requirement.perPlayer > 0 && `${requirement.perPlayer} câu cho mỗi người chơi`}
+          {requirement.perPlayer > 0 &&
+            ` (4 người: ${requirement.fixed + requirement.perPlayer * MAX_PLAYERS} câu)`}
+          .
         </p>
         {!round.source ? (
           <p className="text-sm font-semibold text-orange-800">Chưa chọn nguồn câu hỏi.</p>
@@ -426,7 +749,7 @@ function Builder({ script }: { script?: ScriptDetail }) {
   const [draft, setDraft] = useState<Draft>(() =>
     script
       ? { name: script.name, settings: script.settings, rounds: script.rounds.map((r) => r.round) }
-      : { name: '', settings: DEFAULT_SCRIPT_SETTINGS, rounds: [newWarmupRound()] },
+      : { name: '', settings: DEFAULT_SCRIPT_SETTINGS, rounds: [newRound('warmup')] },
   );
   const [active, setActive] = useState(0);
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
@@ -612,7 +935,43 @@ function Builder({ script }: { script?: ScriptDetail }) {
               setDraft((d) => ({ ...d, settings: { ...d.settings, allowNegativeScore: v } }))
             }
           />
+          <Toggle
+            label="Câu hỏi phụ khi hòa điểm"
+            checked={draft.settings.tiebreakEnabled}
+            onChange={(v) =>
+              setDraft((d) => ({ ...d, settings: { ...d.settings, tiebreakEnabled: v } }))
+            }
+          />
         </div>
+        <details className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <summary className="cursor-pointer text-sm font-semibold">
+            Chế độ tự động: thời gian hiển thị câu hỏi và đáp án
+          </summary>
+          <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3.5">
+            <NumberField
+              label="Hiển thị câu hỏi trước khi tính giờ"
+              suffix="giây"
+              value={draft.settings.autoReadSeconds}
+              onChange={(v) =>
+                setDraft((d) => ({ ...d, settings: { ...d.settings, autoReadSeconds: v } }))
+              }
+              error={errors.get('settings.autoReadSeconds')}
+            />
+            <NumberField
+              label="Hiển thị đáp án trước khi chuyển câu"
+              suffix="giây"
+              value={draft.settings.autoRevealSeconds}
+              onChange={(v) =>
+                setDraft((d) => ({ ...d, settings: { ...d.settings, autoRevealSeconds: v } }))
+              }
+              error={errors.get('settings.autoRevealSeconds')}
+            />
+          </div>
+          <p className="mt-2 text-[13px] text-slate-600">
+            Áp dụng khi phòng chọn “Tự động theo kịch bản”. Câu cần chấm thủ công (trả lời ngắn
+            không khớp, đáp án chướng ngại vật, trả lời bằng lời) luôn chờ Host xác nhận.
+          </p>
+        </details>
 
         {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
         {unchanged && savedIssues.length > 0 && (
@@ -702,8 +1061,7 @@ function Builder({ script }: { script?: ScriptDetail }) {
                   label: `${ROUND_TITLES[key]}${playable ? (used.has(key) ? ' (đã có)' : '') : ' – sắp có'}`,
                   disabled: !playable || used.has(key),
                   onSelect: () => {
-                    if (key !== 'warmup') return;
-                    setDraft((d) => ({ ...d, rounds: [...d.rounds, newWarmupRound()] }));
+                    setDraft((d) => ({ ...d, rounds: [...d.rounds, newRound(key)] }));
                     setActive(draft.rounds.length);
                   },
                 };
@@ -720,7 +1078,7 @@ function Builder({ script }: { script?: ScriptDetail }) {
           >
             {current ? (
               <>
-                <WarmupConfig
+                <RoundConfig
                   round={current}
                   index={active}
                   errors={errors}
