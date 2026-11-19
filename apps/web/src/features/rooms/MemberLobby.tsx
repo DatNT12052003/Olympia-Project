@@ -2,6 +2,7 @@ import type { ParticipantView, RoomState } from '@olympia/shared';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { LeaveIcon } from '../../components/icons';
+import { AvStatusNote, AvTile, LocalAvControls } from '../av/av-ui';
 import { errorMessage } from '../../lib/api-client';
 import { ReactionBar } from './room-stage';
 import { leaveRoom, setReady } from './rooms-api';
@@ -144,13 +145,19 @@ export function MemberLobby({
               seat ? SEAT_BORDER[seat] : 'border-stage-700'
             }`}
           >
-            <span
-              className={`flex size-20 items-center justify-center rounded-full text-[28px] font-extrabold text-stage-900 sm:size-[120px] sm:text-[42px] ${
-                seat ? SEAT_BG[seat] : 'bg-stage-200'
-              }`}
-            >
-              {initials(self.displayName)}
-            </span>
+            <AvTile
+              target={{ participantId: self.id }}
+              mirror
+              fallback={
+                <span
+                  className={`flex size-20 items-center justify-center rounded-full text-[28px] font-extrabold text-stage-900 sm:size-[120px] sm:text-[42px] ${
+                    seat ? SEAT_BG[seat] : 'bg-stage-200'
+                  }`}
+                >
+                  {initials(self.displayName)}
+                </span>
+              }
+            />
             <span className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-lg bg-stage-900/85 py-1.5 pl-1.5 pr-3 text-sm font-bold sm:text-[15px]">
               {seat ? <SeatChip seat={seat} size="sm" /> : null}
               {pending
@@ -160,9 +167,19 @@ export function MemberLobby({
                   : `${self.displayName} · Khán giả`}
             </span>
           </div>
-          <p className="text-[13px] text-stage-200">
-            Camera và micro sẽ dùng được khi có chức năng video call.
-          </p>
+          {isPlayer ? (
+            <section aria-labelledby="devices-heading" className="flex flex-col gap-2.5">
+              <h2 id="devices-heading" className="text-[15px] font-bold">
+                Kiểm tra thiết bị
+              </h2>
+              <LocalAvControls showLevel />
+              <p className="text-[13px] text-stage-200">
+                Không có camera hoặc micro vẫn thi được; mọi người sẽ thấy ảnh đại diện của bạn.
+              </p>
+            </section>
+          ) : (
+            !pending && <AvStatusNote />
+          )}
         </section>
 
         <aside className="flex min-w-0 flex-[1_1_340px] flex-col gap-4">

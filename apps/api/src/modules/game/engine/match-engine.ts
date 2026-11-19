@@ -613,3 +613,9 @@ export function buildMatchView(state: MatchState, input: ViewInput): MatchView {
 export function viewMediaIds(state: MatchState): string[] {
   return roundPlugin(state.rounds[state.roundIndex]!.type).mediaIds(state.round);
 }
+
+/** Ghế đang đến lượt/đang trả lời (để chỉ người đó được nói, mục 11.2). */
+export function activeSeatOf(state: MatchState): number | null {
+  if (state.status === 'finished') return null;
+  return roundPlugin(state.rounds[state.roundIndex]!.type).activeSeat(state.round);
+}

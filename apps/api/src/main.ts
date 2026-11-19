@@ -12,6 +12,9 @@ import { createArgon2PasswordHasher } from './modules/auth/password-hasher';
 import type { SessionsRevokedEvent } from './modules/auth/session-store';
 import { createTokenService } from './modules/auth/token-service';
 import { createHealthService } from './modules/health/health.service';
+import { createLivekitGateway } from './modules/av/av-gateway';
+import { createRedisAvStore } from './modules/av/av-store';
+import { createAvModule, fanOutRoomEvents } from './modules/av/av.module';
 import { createGameModule } from './modules/game/game.module';
 import { createRedisMatchStore } from './modules/game/match-store';
 import { createQuestionBankModule } from './modules/question-bank/question-bank.module';
@@ -128,6 +131,18 @@ async function main(): Promise<void> {
     hostReconnectMinutes: env.HOST_RECONNECT_MINUTES,
   });
 
+  const av = createAvModule({
+    gateway: createLivekitGateway({
+      apiUrl: env.LIVEKIT_API_URL,
+      apiKey: env.LIVEKIT_API_KEY,
+      apiSecret: env.LIVEKIT_API_SECRET,
+    }),
+    store: createRedisAvStore(redis),
+    lobby: rooms.lobbyService,
+    logger,
+    publicUrl: env.LIVEKIT_URL,
+  });
+
   const app = createApp({
     env,
     logger,
@@ -141,6 +156,7 @@ async function main(): Promise<void> {
     questionBank,
     scriptsService,
     matchService: game.matchService,
+    avService: av.avService,
     limiters,
   });
   const httpServer = createServer(app);
@@ -171,8 +187,13 @@ async function main(): Promise<void> {
     limiters,
     logger,
   });
-  game.runtime.attachPublisher(matchRealtime.publisher);
-  rooms.events.attach(roomRealtime.events);
+  game.runtime.attachPublisher({
+    publish(views) {
+      matchRealtime.publisher.publish(views);
+      av.onMatchViews(views);
+    },
+  });
+  rooms.events.attach(fanOutRoomEvents(roomRealtime.events, av.roomEvents));
   realtime.on('connection', (socket) => {
     roomRealtime.register(socket);
     matchRealtime.register(socket);

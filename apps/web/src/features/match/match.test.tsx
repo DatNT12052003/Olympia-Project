@@ -366,6 +366,56 @@ describe('Trận đấu – người chơi', () => {
   });
 });
 
+describe('Âm thanh và hình ảnh – Host (11.2)', () => {
+  it('khóa micro người chơi, bật "chỉ người đến lượt", tắt tiếng toàn phòng', async () => {
+    withStoredSession();
+    const patches: unknown[] = [];
+    let policy = { muteAll: false, turnOnly: false, locks: {} as Record<string, unknown> };
+    mockApi({
+      'POST /auth/refresh': () => jsonResponse(sessionResponse()),
+      [`GET /rooms/${ROOM_ID}/av/policy`]: () => jsonResponse({ policy }),
+      [`PATCH /rooms/${ROOM_ID}/av/policy`]: (req) => {
+        patches.push(req.body);
+        const body = req.body as { type: string; value?: boolean; participantId?: string };
+        if (body.type === 'mute_all') policy = { ...policy, muteAll: body.value ?? false };
+        if (body.type === 'turn_only') policy = { ...policy, turnOnly: body.value ?? false };
+        if (body.type === 'lock') {
+          policy = {
+            ...policy,
+            locks: { ...policy.locks, [body.participantId!]: { mic: true, cam: false } },
+          };
+        }
+        return jsonResponse({ policy });
+      },
+    });
+    mockSocketServer({
+      'room:subscribe': (_payload, ack) => ack?.({ ok: true, data: roomState('host') }),
+      'match:sync': (_payload, ack) =>
+        ack?.({ ok: true, data: matchView({ audience: 'host', mySeat: null }) }),
+    });
+    renderApp(`/phong/${ROOM_ID}`);
+
+    const panel = await screen.findByRole('region', { name: 'Âm thanh và hình ảnh' });
+    // Trình duyệt test không có WebRTC: báo rõ, trận vẫn chạy (BR-AV-02).
+    expect(within(panel).getByText(/không hỗ trợ video call/)).toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Tắt micro Bảo Ngọc' }));
+    await userEvent.click(within(panel).getByRole('switch', { name: /Chỉ người đến lượt/ }));
+    await userEvent.click(within(panel).getByRole('button', { name: 'Tắt tiếng toàn phòng' }));
+    await waitFor(() =>
+      expect(patches).toEqual([
+        { type: 'lock', participantId: 'p2', mic: true },
+        { type: 'turn_only', value: true },
+        { type: 'mute_all', value: true },
+      ]),
+    );
+    expect(
+      await within(panel).findByRole('button', { name: 'Mở tiếng toàn phòng' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mở khóa micro Bảo Ngọc' })).toBeInTheDocument();
+  });
+});
+
 describe('Trận đấu – Host', () => {
   it('Tăng tốc: bảng câu trả lời theo thời gian, Host chấm rồi công bố', async () => {
     withStoredSession();

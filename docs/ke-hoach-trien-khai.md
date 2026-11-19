@@ -33,17 +33,19 @@ Nếu quy mô nhóm khác, cần ước lượng lại thời lượng ở mục
 
 ## 2. Tổng quan các giai đoạn
 
-| Giai đoạn | Nội dung                                   | Thời lượng ước lượng | Phụ thuộc   | Mốc         |
-| --------- | ------------------------------------------ | :------------------: | ----------- | ----------- |
-| P0        | Khởi tạo nền tảng                          | 1–2 tuần             | –           |             |
-| P1        | Tài khoản, xác thực, phân quyền            | 2 tuần               | P0          |             |
-| P2        | Ngân hàng câu hỏi và bộ đề                 | 2 tuần               | P1          |             |
-| P3        | Phòng thi và realtime nền                  | 2 tuần               | P1          | **M1**      |
-| P4        | Game Engine lõi, kịch bản, vòng Khởi động  | 3 tuần               | P2, P3      | **M2**      |
-| P5        | Ba vòng còn lại, chế độ tự động            | 3 tuần               | P4          |             |
-| P6        | Video call và voice chat                   | 2 tuần               | P3          | **M3** (cùng P5) |
-| P7        | Kết quả, lịch sử, thống kê, quản trị       | 2 tuần               | P4          |             |
-| P8        | Hoàn thiện, kiểm thử tải, nghiệm thu, phát hành | 2 tuần          | P5, P6, P7  | **M4**      |
+| Giai đoạn | Nội dung                                   | Thời lượng ước lượng | Phụ thuộc   | Mốc         | Trạng thái |
+| --------- | ------------------------------------------ | :------------------: | ----------- | ----------- | ---------- |
+| P0        | Khởi tạo nền tảng                          | 1–2 tuần             | –           |             | Đã xong |
+| P1        | Tài khoản, xác thực, phân quyền            | 2 tuần               | P0          |             | Đã xong |
+| P2        | Ngân hàng câu hỏi và bộ đề                 | 2 tuần               | P1          |             | Đã xong |
+| P3        | Phòng thi và realtime nền                  | 2 tuần               | P1          | **M1**      | Đã xong |
+| P4        | Game Engine lõi, kịch bản, vòng Khởi động  | 3 tuần               | P2, P3      | **M2**      | Đã xong |
+| P5        | Ba vòng còn lại, chế độ tự động            | 3 tuần               | P4          |             | Đã xong |
+| P6        | Video call và voice chat                   | 2 tuần               | P3          | **M3** (cùng P5) | Đã code, chờ review/merge; chưa thử video trên staging/4G |
+| P7        | Kết quả, lịch sử, thống kê, quản trị       | 2 tuần               | P4          |             | Chưa làm |
+| P8        | Hoàn thiện, kiểm thử tải, nghiệm thu, phát hành | 2 tuần          | P5, P6, P7  | **M4**      | Chưa làm |
+
+> **Theo dõi tiến độ:** cập nhật cột "Trạng thái" mỗi khi một giai đoạn xong (merge vào `develop`) hoặc có phần chưa đạt tiêu chí. Cập nhật lần cuối: 2026-11-19.
 
 **Tổng:** khoảng 19–20 tuần nếu làm tuần tự; khoảng **13–14 tuần** khi chạy song song P2 ∥ P3, P6 ∥ P4, P7 ∥ P5. Nên dự phòng thêm 2–3 tuần cho phát sinh, tức mục tiêu thực tế **15–17 tuần**.
 

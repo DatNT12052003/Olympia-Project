@@ -22,6 +22,9 @@ import { type AuthService, createAuthService } from '../modules/auth/auth.servic
 import { createArgon2PasswordHasher, type PasswordHasher } from '../modules/auth/password-hasher';
 import type { SessionsRevokedEvent } from '../modules/auth/session-store';
 import { createTokenService } from '../modules/auth/token-service';
+import { createMemoryAvStore } from '../modules/av/av-store';
+import { type AvModule, createAvModule, fanOutRoomEvents } from '../modules/av/av.module';
+import { createFakeAvGateway, type FakeAvGateway } from '../modules/av/fake-av-gateway';
 import { createGameModule, type GameModule } from '../modules/game/game.module';
 import { createRedisMatchStore } from '../modules/game/match-store';
 import { createHealthService, type DependencyCheck } from '../modules/health/health.service';
@@ -62,6 +65,9 @@ export interface TestContext {
   questionBank: QuestionBankModule;
   scriptsService: ScriptsService;
   game: GameModule;
+  /** Module âm thanh/hình ảnh với gateway LiveKit giả. */
+  av: AvModule;
+  fakeAv: FakeAvGateway;
   /** Redis của test (để realtime test dùng chung). */
   redis: Redis;
   /** Gắn bộ phát sự kiện phòng (ví dụ realtime server trong test). */
@@ -171,6 +177,16 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     ...(options.matchNow ? { now: options.matchNow } : {}),
   });
 
+  const fakeAv = createFakeAvGateway();
+  const av = createAvModule({
+    gateway: fakeAv.gateway,
+    store: createMemoryAvStore(),
+    lobby: rooms.lobbyService,
+    logger: silentLogger,
+    publicUrl: 'ws://livekit.test',
+  });
+  rooms.events.attach(av.roomEvents);
+
   const app = createApp({
     env: { CORS_ORIGINS: ['http://localhost:5173'], TRUST_PROXY: 0, COOKIE_SECURE: false },
     logger: silentLogger,
@@ -184,6 +200,7 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     questionBank,
     scriptsService,
     matchService: game.matchService,
+    avService: av.avService,
     limiters: memoryLimiterFactory,
   });
 
@@ -200,8 +217,10 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     questionBank,
     scriptsService,
     game,
+    av,
+    fakeAv,
     redis,
-    attachRoomEvents: (events) => rooms.events.attach(events),
+    attachRoomEvents: (events) => rooms.events.attach(fanOutRoomEvents(events, av.roomEvents)),
     close: async () => {
       await game.runtime.stop();
       await redis.quit();

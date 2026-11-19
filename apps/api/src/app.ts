@@ -6,6 +6,8 @@ import type { Logger } from 'pino';
 import { pinoHttp } from 'pino-http';
 import type { Env } from './config/env';
 import { createAuthRouter } from './modules/auth/auth.routes';
+import { createAvRouter } from './modules/av/av.routes';
+import type { AvService } from './modules/av/av.service';
 import type { AuthService } from './modules/auth/auth.service';
 import { createHealthRouter } from './modules/health/health.routes';
 import { createMediaRouter } from './modules/media/media.routes';
@@ -47,6 +49,7 @@ export interface AppDependencies {
   questionBank: QuestionBankModule;
   scriptsService: ScriptsService;
   matchService: MatchService;
+  avService: AvService;
   limiters: LimiterFactory;
 }
 
@@ -63,6 +66,7 @@ export function createApp({
   questionBank,
   scriptsService,
   matchService,
+  avService,
   limiters,
 }: AppDependencies): Express {
   const app = express();
@@ -90,6 +94,7 @@ export function createApp({
   api.use('/admin/users', createAdminUsersRouter(adminUsersService));
   api.use('/admin/organizations', createOrganizationsRouter(organizationsService));
   api.use('/rooms/:roomId/match', createMatchRouter(matchService));
+  api.use('/rooms/:roomId/av', createAvRouter(avService));
   api.use(
     '/rooms',
     createRoomsRouter({

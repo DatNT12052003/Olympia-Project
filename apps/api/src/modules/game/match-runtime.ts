@@ -10,6 +10,7 @@ import {
   buildMatchView,
   type EngineInput,
   type EngineResult,
+  activeSeatOf,
   viewMediaIds,
 } from './engine/match-engine';
 import type { MatchState, ScriptSnapshot } from './engine/match-state';
@@ -29,6 +30,9 @@ export interface MatchViews {
   spectator: MatchView;
   /** Theo khóa danh tính của Player (`u:`/`g:`). */
   players: Map<string, MatchView>;
+  /** Trận đang chạy (không tạm dừng/kết thúc) và Player đang đến lượt nói (mục 11.2). */
+  running: boolean;
+  speakerKey: string | null;
 }
 
 /** Tầng realtime phát trạng thái trận (Game Engine không biết về Socket.IO, DL-010). */
@@ -253,6 +257,8 @@ export function createMatchRuntime(deps: MatchRuntimeDeps) {
       host: buildMatchView(state, { ...base, audience: 'host', seat: null }),
       spectator: buildMatchView(state, { ...base, audience: 'spectator', seat: null }),
       players,
+      running: state.status === 'running',
+      speakerKey: state.players.find((p) => p.seat === activeSeatOf(state))?.key ?? null,
     };
   }
 

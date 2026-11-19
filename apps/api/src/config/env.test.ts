@@ -56,8 +56,22 @@ describe('loadEnv', () => {
     expect(() => loadEnv({ ...validEnv, NODE_ENV: 'production' })).toThrow(/S3_SECRET_ACCESS_KEY/);
   });
 
+  it('không cho dùng khóa LiveKit mẫu ở production; URL API suy từ LIVEKIT_URL', () => {
+    expect(() =>
+      loadEnv({ ...validEnv, NODE_ENV: 'production', S3_SECRET_ACCESS_KEY: 'real-key' }),
+    ).toThrow(/LIVEKIT_API_SECRET/);
+    expect(loadEnv({ ...validEnv, LIVEKIT_URL: 'wss://av.example.com' }).LIVEKIT_API_URL).toBe(
+      'https://av.example.com',
+    );
+  });
+
   it('COOKIE_SECURE mặc định bật ở production, tắt khi dev, ghi đè được', () => {
-    const production = { ...validEnv, NODE_ENV: 'production', S3_SECRET_ACCESS_KEY: 'real-key' };
+    const production = {
+      ...validEnv,
+      NODE_ENV: 'production',
+      S3_SECRET_ACCESS_KEY: 'real-key',
+      LIVEKIT_API_SECRET: 'livekit-production-secret-0123456789',
+    };
     expect(loadEnv(validEnv).COOKIE_SECURE).toBe(false);
     expect(loadEnv(production).COOKIE_SECURE).toBe(true);
     expect(loadEnv({ ...validEnv, COOKIE_SECURE: 'true' }).COOKIE_SECURE).toBe(true);

@@ -36,9 +36,11 @@ services:
       retries: 10
 
   # SFU cho video/voice (dùng từ P6). Chế độ dev: API key `devkey`, secret `secret`.
+  # `--node-ip 127.0.0.1`: trình duyệt trên máy dev gửi media tới cổng 7881/7882 đã map ra máy chủ
+  # (mặc định LiveKit quảng bá IP nội bộ của container và IP public, trình duyệt không tới được).
   livekit:
     image: livekit/livekit-server:v1.13.11
-    command: ['--dev', '--bind', '0.0.0.0']
+    command: ['--dev', '--bind', '0.0.0.0', '--node-ip', '127.0.0.1']
     ports:
       - '127.0.0.1:7880:7880'
       - '7881:7881'

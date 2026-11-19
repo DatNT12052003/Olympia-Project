@@ -5,6 +5,7 @@ import { Button } from '../../components/Button';
 import { CheckIcon, ChevronLeftIcon, CloseIcon, PlayIcon } from '../../components/icons';
 import { Modal } from '../../components/Modal';
 import { errorMessage } from '../../lib/api-client';
+import { AvTile, HostAvPanel } from '../av/av-ui';
 import { startMatch } from '../match/match-api';
 import { ReactionBar } from './room-stage';
 import { participantAction, type ParticipantAction, useRoomAction } from './rooms-api';
@@ -295,12 +296,17 @@ export function HostLobby({
                     player.ready ? SEAT_BORDER[seat] : 'border-stage-700'
                   }`}
                 >
-                  <div className="relative flex h-[150px] items-center justify-center bg-[#1E3A75]">
-                    <span
-                      className={`flex size-16 items-center justify-center rounded-full text-[22px] font-extrabold text-stage-900 ${SEAT_BG[seat]}`}
-                    >
-                      {initials(player.displayName)}
-                    </span>
+                  <div className="relative flex h-[150px] items-center justify-center overflow-hidden bg-[#1E3A75]">
+                    <AvTile
+                      target={{ participantId: player.id }}
+                      fallback={
+                        <span
+                          className={`flex size-16 items-center justify-center rounded-full text-[22px] font-extrabold text-stage-900 ${SEAT_BG[seat]}`}
+                        >
+                          {initials(player.displayName)}
+                        </span>
+                      }
+                    />
                     <span className="absolute left-2.5 top-2.5">
                       <SeatChip seat={seat} />
                     </span>
@@ -428,6 +434,7 @@ export function HostLobby({
         </section>
 
         <aside className="flex min-w-0 flex-[1_1_300px] flex-col gap-4">
+          <HostAvPanel roomId={roomId} inMatch={false} />
           <section
             aria-labelledby="pending-heading"
             className="flex flex-col gap-3 rounded-2xl bg-stage-800 p-[18px]"
