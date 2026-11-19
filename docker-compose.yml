@@ -1,7 +1,8 @@
 # Dịch vụ phụ thuộc cho môi trường phát triển. Chạy: npm run services:up
 # Ứng dụng (api, web) chạy trực tiếp trên máy bằng `npm run dev`.
 # Cổng phía máy dùng giá trị riêng để tránh trùng dịch vụ khác; đổi qua biến môi trường
-# (POSTGRES_PORT, REDIS_PORT, MAILPIT_SMTP_PORT, MAILPIT_UI_PORT) hoặc file .env ở thư mục gốc.
+# (POSTGRES_PORT, REDIS_PORT, MAILPIT_SMTP_PORT, MAILPIT_UI_PORT, SEAWEEDFS_S3_PORT) hoặc file .env
+# ở thư mục gốc.
 name: olympia
 
 services:
@@ -50,6 +51,26 @@ services:
       - '127.0.0.1:${MAILPIT_SMTP_PORT:-1026}:1025'
       - '127.0.0.1:${MAILPIT_UI_PORT:-8026}:8025'
 
+  # Object storage S3-compatible cho media câu hỏi (DL-025). Dev không bật xác thực S3:
+  # mọi access key đều được chấp nhận, chỉ nghe trên localhost.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.53
+    command:
+      [
+        'server',
+        '-dir=/data',
+        '-ip.bind=0.0.0.0',
+        '-master.volumeSizeLimitMB=1024',
+        '-volume.max=0',
+        '-s3',
+        '-s3.port=8333',
+      ]
+    ports:
+      - '127.0.0.1:${SEAWEEDFS_S3_PORT:-8340}:8333'
+    volumes:
+      - seaweedfs-data:/data
+
 volumes:
   postgres-data:
   redis-data:
+  seaweedfs-data:

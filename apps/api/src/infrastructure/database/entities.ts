@@ -1,4 +1,9 @@
 import { AdminAuditLogEntity } from '../../modules/audit/admin-audit-log.entity';
+import { MediaAssetEntity } from '../../modules/media/media-asset.entity';
+import { QuestionSetItemEntity } from '../../modules/question-bank/question-set-item.entity';
+import { QuestionSetVersionEntity } from '../../modules/question-bank/question-set-version.entity';
+import { QuestionSetEntity } from '../../modules/question-bank/question-set.entity';
+import { QuestionEntity } from '../../modules/question-bank/question.entity';
 import { AuthSessionEntity } from '../../modules/auth/auth-session.entity';
 import { RefreshTokenEntity } from '../../modules/auth/refresh-token.entity';
 import { UserActionTokenEntity } from '../../modules/auth/user-action-token.entity';
@@ -21,4 +26,9 @@ export const entities = [
   RoomEntity,
   RoomParticipantEntity,
   RoomBanEntity,
+  MediaAssetEntity,
+  QuestionEntity,
+  QuestionSetEntity,
+  QuestionSetItemEntity,
+  QuestionSetVersionEntity,
 ];

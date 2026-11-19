@@ -8,6 +8,14 @@ import type { Env } from './config/env';
 import { createAuthRouter } from './modules/auth/auth.routes';
 import type { AuthService } from './modules/auth/auth.service';
 import { createHealthRouter } from './modules/health/health.routes';
+import { createMediaRouter } from './modules/media/media.routes';
+import type { QuestionBankModule } from './modules/question-bank/question-bank.module';
+import {
+  createModerationRouter,
+  createPublicSetsRouter,
+  createQuestionSetsRouter,
+  createQuestionsRouter,
+} from './modules/question-bank/question-bank.routes';
 import type { HealthService } from './modules/health/health.service';
 import type { LimiterFactory } from './infrastructure/rate-limit/rate-limiter';
 import type { LobbyService } from './modules/rooms/lobby.service';
@@ -32,6 +40,7 @@ export interface AppDependencies {
   organizationsService: OrganizationsService;
   roomsService: RoomsService;
   lobbyService: LobbyService;
+  questionBank: QuestionBankModule;
   limiters: LimiterFactory;
 }
 
@@ -45,6 +54,7 @@ export function createApp({
   organizationsService,
   roomsService,
   lobbyService,
+  questionBank,
   limiters,
 }: AppDependencies): Express {
   const app = express();
@@ -80,6 +90,11 @@ export function createApp({
       cookies: { secure: env.COOKIE_SECURE },
     }),
   );
+  api.use('/media', createMediaRouter(questionBank.mediaService));
+  api.use('/questions', createQuestionsRouter(questionBank.questionsService));
+  api.use('/question-sets', createQuestionSetsRouter(questionBank.questionSetsService));
+  api.use('/public-question-sets', createPublicSetsRouter(questionBank.publicSetsService));
+  api.use('/moderation/question-sets', createModerationRouter(questionBank.publicSetsService));
   app.use('/api', api);
 
   app.use(notFoundHandler);

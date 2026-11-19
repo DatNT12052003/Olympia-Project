@@ -14,11 +14,19 @@ import type { DataSource } from 'typeorm';
 import { createApp } from '../app';
 import { createDataSource } from '../infrastructure/database/data-source';
 import { memoryLimiterFactory } from '../infrastructure/rate-limit/rate-limiter';
+import {
+  createMemoryObjectStorage,
+  type MemoryObjectStorage,
+} from '../infrastructure/storage/object-storage';
 import { type AuthService, createAuthService } from '../modules/auth/auth.service';
 import { createArgon2PasswordHasher, type PasswordHasher } from '../modules/auth/password-hasher';
 import type { SessionsRevokedEvent } from '../modules/auth/session-store';
 import { createTokenService } from '../modules/auth/token-service';
 import { createHealthService, type DependencyCheck } from '../modules/health/health.service';
+import {
+  createQuestionBankModule,
+  type QuestionBankModule,
+} from '../modules/question-bank/question-bank.module';
 import type { LobbyService } from '../modules/rooms/lobby.service';
 import { createRedisPresenceStore, type PresenceStore } from '../modules/rooms/presence-store';
 import type { RoomEvents } from '../modules/rooms/room-events';
@@ -46,6 +54,9 @@ export interface TestContext {
   roomsService: RoomsService;
   lobbyService: LobbyService;
   presence: PresenceStore;
+  /** Object storage trong bộ nhớ: đặt nội dung tệp "đã upload" bằng `put`. */
+  storage: MemoryObjectStorage;
+  questionBank: QuestionBankModule;
   /** Gắn bộ phát sự kiện phòng (ví dụ realtime server trong test). */
   attachRoomEvents(events: RoomEvents): void;
   close(): Promise<void>;
@@ -124,6 +135,13 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     ...(options.now ? { now: options.now } : {}),
   });
 
+  const storage = createMemoryObjectStorage();
+  const questionBank = createQuestionBankModule({
+    dataSource,
+    storage,
+    limiters: memoryLimiterFactory,
+  });
+
   const app = createApp({
     env: { CORS_ORIGINS: ['http://localhost:5173'], TRUST_PROXY: 0, COOKIE_SECURE: false },
     logger: silentLogger,
@@ -134,6 +152,7 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     organizationsService,
     roomsService: rooms.roomsService,
     lobbyService: rooms.lobbyService,
+    questionBank,
     limiters: memoryLimiterFactory,
   });
 
@@ -146,6 +165,8 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     roomsService: rooms.roomsService,
     lobbyService: rooms.lobbyService,
     presence,
+    storage,
+    questionBank,
     attachRoomEvents: (events) => rooms.events.attach(events),
     close: async () => {
       await redis.quit();

@@ -1,12 +1,13 @@
 import { Link, NavLink, Outlet } from 'react-router';
 import { Wordmark } from '../../components/Card';
 import { useOrganizations } from '../../features/admin/admin-api';
+import { useReviewQueue } from '../../features/question-bank/qb-api';
 import { useAuth } from '../../features/auth/use-auth';
 
 /**
  * Khung trang quản trị theo thiết kế (màn UserManagement): sidebar navy bên trái, nội dung bên
- * phải; trên mobile sidebar thành thanh điều hướng phía trên. Các mục Duyệt nội dung, Báo cáo vi
- * phạm, Phòng đang hoạt động (P7) sẽ thêm khi có chức năng.
+ * phải; trên mobile sidebar thành thanh điều hướng phía trên. Các mục Báo cáo vi phạm, Phòng đang
+ * hoạt động (P7) sẽ thêm khi có chức năng.
  */
 const itemClass = ({ isActive }: { isActive: boolean }) =>
   `flex min-h-11 items-center rounded-lg px-3 text-[15px] no-underline hover:no-underline ${
@@ -26,6 +27,7 @@ function useScopeLabel(): string {
 export function AdminLayout() {
   const { user } = useAuth();
   const scope = useScopeLabel();
+  const pendingReviews = useReviewQueue().data?.length ?? 0;
 
   return (
     <div className="flex min-h-dvh flex-col bg-canvas text-slate-900 lg:flex-row">
@@ -45,6 +47,17 @@ export function AdminLayout() {
           </NavLink>
           <NavLink to="/quan-tri/to-chuc" className={itemClass}>
             Tổ chức
+          </NavLink>
+          <NavLink to="/quan-tri/duyet-noi-dung" className={itemClass}>
+            <span className="flex-1">Duyệt nội dung</span>
+            {pendingReviews > 0 && (
+              <span
+                aria-label={`${pendingReviews} bộ chờ duyệt`}
+                className="ml-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-accent-400 px-1.5 text-xs font-extrabold text-stage-900"
+              >
+                {pendingReviews}
+              </span>
+            )}
           </NavLink>
         </div>
         <div className="mx-2 hidden flex-col gap-1 border-t border-stage-800 pt-4 text-sm lg:mt-auto lg:flex">

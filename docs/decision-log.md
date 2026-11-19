@@ -43,7 +43,7 @@
 | DL-022 | 2026-11-18 | Công nghệ  | Test runner frontend dùng Vitest                                           | Đã chấp nhận    |
 | DL-023 | –          | Hạ tầng    | Nơi triển khai production                                                  | Chưa quyết định |
 | DL-024 | –          | Hạ tầng    | Object storage và CDN production                                           | Chưa quyết định |
-| DL-025 | 2026-11-18 | Hạ tầng    | Object storage S3-compatible cho môi trường dev (thay MinIO)               | Chưa quyết định |
+| DL-025 | 2026-11-18 | Hạ tầng    | Object storage S3-compatible cho môi trường dev: SeaweedFS                 | Đã chấp nhận    |
 | DL-026 | 2026-11-18 | Kiến trúc  | Sảnh chờ: thao tác qua REST, trạng thái phòng đẩy xuống qua Socket.IO      | Đã chấp nhận    |
 | DL-027 | 2026-11-18 | Nghiệp vụ  | Link mời là mã phòng; "tạo link mới" = đổi mã phòng                        | Đã chấp nhận    |
 | DL-028 | 2026-11-18 | Nghiệp vụ  | Phiên khách gắn với một phòng                                              | Đã chấp nhận    |
@@ -51,6 +51,10 @@
 | DL-030 | 2026-11-18 | Nghiệp vụ  | Định nghĩa "phòng không hoạt động" để tự đóng                              | Đã chấp nhận    |
 | DL-031 | 2026-11-18 | Kiến trúc  | Giới hạn hệ thống của phòng lấy từ biến môi trường cho tới P7              | Đã chấp nhận    |
 | DL-032 | 2026-11-18 | Nghiệp vụ  | Danh sách phòng công khai đơn giản trên trang Vào phòng                    | Đã chấp nhận    |
+| DL-033 | 2026-11-18 | Kiến trúc  | Chia sẻ public bằng phiên bản snapshot của bộ đề                           | Đã chấp nhận    |
+| DL-034 | 2026-11-18 | Nghiệp vụ  | Câu hỏi = dạng đáp án + media tùy chọn                                     | Đã chấp nhận    |
+| DL-035 | 2026-11-18 | Kiến trúc  | Upload media trực tiếp lên object storage qua presigned URL                | Đã chấp nhận    |
+| DL-036 | 2026-11-18 | Nghiệp vụ  | Màn kiểm duyệt bộ public làm ở P2 (board Moderation ghi P7)                | Đã chấp nhận    |
 
 ---
 
@@ -201,6 +205,34 @@
 - **Bối cảnh:** Mục 4.2 yêu cầu phòng công khai hiển thị trong danh sách; canvas thiết kế chưa có màn riêng.
 - **Quyết định:** Có API danh sách phòng công khai đang mở và một danh sách đơn giản trên trang Vào phòng, theo nền tảng giao diện (màn `Main`).
 
+### DL-025 – Object storage dev: SeaweedFS
+
+- **Bối cảnh:** P2 cần upload ảnh/video câu hỏi (BR-QB-02); MinIO không còn image cộng đồng.
+- **Quyết định:** Dev dùng SeaweedFS (`chrislusf/seaweedfs:4.53`, S3 gateway) trong docker-compose, cổng `127.0.0.1:8340`, không bật xác thực S3. API dùng AWS SDK v3, cấu hình qua `S3_*` trong `.env`; production không cho dùng khóa mẫu.
+- **Hệ quả:** SeaweedFS khi không bật xác thực không kiểm tra chữ ký hay Content-Type, nên server luôn kiểm tra lại tệp sau upload (DL-035). Production vẫn chờ DL-024.
+
+### DL-033 – Chia sẻ public bằng phiên bản snapshot
+
+- **Bối cảnh:** 5.4, BR-QB-04/05/07/09: bản đã duyệt không đổi khi chủ sở hữu sửa; bản sao độc lập với bản gốc; gỡ public không làm hỏng kịch bản đang tham chiếu.
+- **Quyết định:** Đơn vị chia sẻ là **bộ đề**. Mỗi lần "Chia sẻ public" tạo một phiên bản (`question_set_versions`) chứa snapshot đầy đủ nội dung câu hỏi tại thời điểm gửi. Trạng thái: `pending` → `approved`/`rejected`; bản cũ thành `superseded`; gỡ public là `withdrawn`. Mỗi bộ tối đa một bản chờ duyệt và một bản đang public (unique index). Sao chép bộ public tạo bộ đề và câu hỏi mới thuộc người sao chép.
+- **Hệ quả:** Kiểm duyệt so sánh hai snapshot để hiện câu thêm/sửa/bỏ. Kịch bản (P4) nên tham chiếu phiên bản, không tham chiếu bộ đề đang soạn của người khác.
+
+### DL-034 – Câu hỏi = dạng đáp án + media tùy chọn
+
+- **Bối cảnh:** 5.2 coi "câu hỏi hình ảnh/video/âm thanh" là media + một dạng đáp án; board QuestionEditor lại để Hình ảnh/Video ngang hàng với Trắc nghiệm/Đúng-Sai/Trả lời ngắn.
+- **Quyết định:** Lưu `answer_type` (`mcq`, `true_false`, `short_answer`) và `media_id` riêng. Giao diện chọn dạng đáp án bằng 3 nút và đính media ở ô kéo thả; cột "Loại" hiện ví dụ "Trắc nghiệm · Hình ảnh"; bộ lọc có thêm "Media".
+- **Hệ quả:** Câu hình ảnh vẫn chấm tự động theo dạng đáp án. So khớp trả lời ngắn (BR-QB-01) nằm trong `@olympia/shared` để engine P4 dùng lại.
+
+### DL-035 – Upload media qua presigned URL
+
+- **Quyết định:** Trình duyệt xin `POST /api/media/uploads` (server kiểm tra định dạng/dung lượng khai báo, cấp presigned PUT 10 phút), upload thẳng lên object storage, rồi gọi `POST /api/media/:id/complete`: server kiểm tra dung lượng thật và chữ ký đầu tệp (JPG/PNG/WEBP/MP4/MP3); sai thì xóa tệp. URL đọc là presigned GET 1 giờ.
+- **Hệ quả:** API không chuyển tiếp dữ liệu tệp. Bản ghi media `pending` không được hoàn tất hiện chưa được dọn tự động (cần job dọn dẹp sau).
+
+### DL-036 – Màn kiểm duyệt bộ public làm ở P2
+
+- **Bối cảnh:** Kế hoạch P2 gồm duyệt/từ chối bộ public; board Moderation trong canvas ghi P7.
+- **Quyết định:** Làm màn "Duyệt nội dung" trong khung Quản trị ngay ở P2, theo board Moderation; bỏ ô "Kịch bản đang dùng" vì kịch bản thuộc P4. Duyệt/từ chối ghi vào `admin_audit_logs`.
+
 ---
 
 ## 4. Quyết định công nghệ
@@ -218,7 +250,7 @@ Chi tiết lý do và phương án thay thế: [cong-nghe-su-dung.md](cong-nghe-
 | DL-022 | Vitest cho frontend                                                                         | Jest                        | Điểm T5.                                        |
 | DL-023 | Nơi triển khai production                                                                   | VPS tự quản / cloud / Kubernetes | Điểm T6. Cần thông tin ngân sách và quy mô. |
 | DL-024 | Object storage và CDN production                                                            | –                           | Điểm T7. Phụ thuộc DL-023.                      |
-| DL-025 | Object storage S3-compatible cho dev. MinIO không còn phát hành Docker image cộng đồng (kiểm tra ngày 2026-11-18), nên chưa đưa vào docker-compose ở P0. | SeaweedFS, Garage, LocalStack | Cần chốt trước P2 (upload media). Nên chọn cùng lúc với DL-024. |
+| DL-025 | Object storage S3-compatible cho dev: **SeaweedFS** (chốt ngày 2026-11-18 khi làm P2). MinIO không còn phát hành Docker image cộng đồng. | Garage, LocalStack | Production chờ DL-024. |
 
 ---
 

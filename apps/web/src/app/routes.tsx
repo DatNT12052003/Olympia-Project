@@ -14,6 +14,11 @@ import { ComingSoonPage } from '../pages/ComingSoonPage';
 import { HomePage } from '../pages/HomePage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { RouteErrorPage } from '../pages/RouteErrorPage';
+import { ModerationPage } from '../pages/admin/ModerationPage';
+import { PublicSetPage } from '../pages/question-bank/PublicSetPage';
+import { QuestionBankPage } from '../pages/question-bank/QuestionBankPage';
+import { QuestionEditorPage } from '../pages/question-bank/QuestionEditorPage';
+import { QuestionSetPage } from '../pages/question-bank/QuestionSetPage';
 import { HostLayout } from '../pages/rooms/HostLayout';
 import { HostRoomsPage } from '../pages/rooms/HostRoomsPage';
 import { JoinRoomPage } from '../pages/rooms/JoinRoomPage';
@@ -49,6 +54,7 @@ export const routes: RouteObject[] = [
             children: [
               { index: true, element: <AdminUsersPage /> },
               { path: 'to-chuc', element: <AdminOrganizationsPage /> },
+              { path: 'duyet-noi-dung', element: <ModerationPage /> },
             ],
           },
         ],
@@ -60,6 +66,22 @@ export const routes: RouteObject[] = [
           { element: <HostLayout />, children: [{ index: true, element: <HostRoomsPage /> }] },
           { path: 'tao', element: <RoomFormPage /> },
           { path: ':roomId/sua', element: <RoomFormPage /> },
+        ],
+      },
+      {
+        path: 'ngan-hang',
+        element: <RequireAuth permission={SystemPermission.ManageOwnQuestions} />,
+        children: [
+          {
+            element: <HostLayout />,
+            children: [
+              { index: true, element: <QuestionBankPage /> },
+              { path: 'bo-de/:setId', element: <QuestionSetPage /> },
+              { path: 'bo-public/:versionId', element: <PublicSetPage /> },
+            ],
+          },
+          { path: 'cau-hoi/moi', element: <QuestionEditorPage /> },
+          { path: 'cau-hoi/:questionId', element: <QuestionEditorPage /> },
         ],
       },
       { path: 'vao-phong', element: <JoinRoomPage /> },
