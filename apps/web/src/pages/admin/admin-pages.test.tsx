@@ -16,6 +16,8 @@ const member: AdminUser = {
   status: 'active',
   lockedAt: null,
   lockedReason: null,
+  deletionRequestedAt: null,
+  warningCount: 0,
   organizationId: null,
   createdAt: new Date().toISOString(),
   lastActiveAt: null,

@@ -3,6 +3,8 @@ import { MatchPlayerEntity } from '../../modules/game/match-player.entity';
 import {
   MatchAnswerEntity,
   MatchInterventionEntity,
+  MatchQuestionEntity,
+  MatchQuestionOutcomeEntity,
   MatchScoreEventEntity,
 } from '../../modules/game/match-records.entity';
 import { MatchEntity } from '../../modules/game/match.entity';
@@ -19,7 +21,9 @@ import { OrganizationEntity } from '../../modules/organizations/organization.ent
 import { RoomBanEntity } from '../../modules/rooms/room-ban.entity';
 import { RoomParticipantEntity } from '../../modules/rooms/room-participant.entity';
 import { RoomEntity } from '../../modules/rooms/room.entity';
+import { ReportEntity } from '../../modules/reports/report.entity';
 import { MatchScriptEntity } from '../../modules/scripts/match-script.entity';
+import { SystemSettingEntity } from '../../modules/settings/system-setting.entity';
 import { UserEntity } from '../../modules/users/user.entity';
 
 /** Khai báo tường minh (không dùng glob) để tsx, Jest và bản build nạp giống nhau. */
@@ -45,4 +49,8 @@ export const entities = [
   MatchAnswerEntity,
   MatchScoreEventEntity,
   MatchInterventionEntity,
+  MatchQuestionEntity,
+  MatchQuestionOutcomeEntity,
+  SystemSettingEntity,
+  ReportEntity,
 ];

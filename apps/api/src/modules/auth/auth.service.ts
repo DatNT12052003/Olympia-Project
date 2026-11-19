@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import {
+  ACCOUNT_DELETION_GRACE_DAYS,
   AuthErrorCode,
   EMAIL_VERIFICATION_TTL_HOURS,
   type LoginFailureDetails,
   PASSWORD_RESET_TTL_MINUTES,
   type CurrentUser,
   type changePasswordRequestSchema,
+  type deleteAccountRequestSchema,
   type loginRequestSchema,
   type registerRequestSchema,
   type resetPasswordRequestSchema,
@@ -25,7 +27,7 @@ import {
 import type { Mailer, MailMessage } from '../../shared/mail/mailer';
 import { UserEntity } from '../users/user.entity';
 import { toCurrentUser } from '../users/user.mapper';
-import { passwordResetEmail, verificationEmail } from './auth.mails';
+import { deletionRequestedEmail, passwordResetEmail, verificationEmail } from './auth.mails';
 import { AuthSessionEntity } from './auth-session.entity';
 import type { PasswordHasher } from './password-hasher';
 import { RefreshTokenEntity } from './refresh-token.entity';
@@ -348,6 +350,14 @@ export function createAuthService(deps: AuthServiceDeps) {
       if (user.status === 'locked') {
         throw new ForbiddenError('Tài khoản đã bị khóa.', AuthErrorCode.AccountLocked);
       }
+      if (user.status === 'pending_deletion') {
+        throw new ForbiddenError(
+          'Tài khoản đang chờ xóa. Mở liên kết "Giữ lại tài khoản" trong email để khôi phục.',
+          AuthErrorCode.AccountPendingDeletion,
+        );
+      }
+      if (user.status !== 'active')
+        throw invalidCredentials({ remainingAttempts: 0, lockoutMinutes: 0 });
 
       await loginByEmailIp.reset(emailIpKey);
       return dataSource.transaction((manager) => issueSession(manager, user, meta));
@@ -535,6 +545,61 @@ export function createAuthService(deps: AuthServiceDeps) {
         await revokeSessions(manager, event, now());
       });
       emitRevoked(event);
+    },
+
+    /**
+     * Yêu cầu xóa tài khoản (BR-DATA-03, DL-008): xác nhận mật khẩu, chuyển sang chờ xóa, thu hồi
+     * mọi phiên và gửi email kèm liên kết giữ lại tài khoản trong thời gian ân hạn.
+     */
+    async requestDeletion(
+      principal: UserPrincipal,
+      input: z.output<typeof deleteAccountRequestSchema>,
+    ): Promise<void> {
+      const user = await dataSource
+        .getRepository(UserEntity)
+        .createQueryBuilder('u')
+        .addSelect('u.passwordHash')
+        .where('u.id = :id', { id: principal.userId })
+        .getOneOrFail();
+      if (!(await passwords.verify(user.passwordHash, input.password))) {
+        throw new BadRequestError('Mật khẩu không đúng.', AuthErrorCode.InvalidCredentials);
+      }
+      const requestedAt = now();
+      const graceMs = ACCOUNT_DELETION_GRACE_DAYS * 24 * 60 * 60 * 1000;
+      const event: SessionsRevokedEvent = { userId: user.id, reason: 'account_deleted' };
+      const token = await dataSource.transaction(async (manager) => {
+        await manager.update(
+          UserEntity,
+          { id: user.id },
+          { status: 'pending_deletion', deletionRequestedAt: requestedAt },
+        );
+        await revokeSessions(manager, event, requestedAt);
+        return createActionToken(manager, user.id, 'cancel_deletion', graceMs);
+      });
+      emitRevoked(event);
+      const url = `${config.appUrl}/giu-tai-khoan?token=${encodeURIComponent(token)}`;
+      const purgeDate = new Date(requestedAt.getTime() + graceMs).toLocaleDateString('vi-VN', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+      });
+      sendMail(deletionRequestedEmail(user.email, user.displayName, url, purgeDate));
+    },
+
+    /** Hủy yêu cầu xóa bằng liên kết trong email; người dùng đăng nhập lại như bình thường. */
+    async cancelDeletion(token: string): Promise<void> {
+      await dataSource.transaction(async (manager) => {
+        const userId = await consumeActionToken(manager, token, 'cancel_deletion');
+        const result = await manager.update(
+          UserEntity,
+          { id: userId, status: 'pending_deletion' },
+          { status: 'active', deletionRequestedAt: null },
+        );
+        if (!result.affected) {
+          throw new BadRequestError(
+            'Tài khoản không còn ở trạng thái chờ xóa.',
+            AuthErrorCode.InvalidActionToken,
+          );
+        }
+      });
     },
 
     /**

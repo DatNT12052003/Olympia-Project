@@ -1,6 +1,8 @@
 import {
   type AuthSessionResponse,
+  cancelDeletionRequestSchema,
   changePasswordRequestSchema,
+  deleteAccountRequestSchema,
   forgotPasswordRequestSchema,
   type GuestSessionResponse,
   loginRequestSchema,
@@ -130,6 +132,19 @@ export function createAuthController(authService: AuthService, cookies: AuthCook
     res.status(204).end();
   };
 
+  const deleteAccount: RequestHandler = async (req, res) => {
+    const input = deleteAccountRequestSchema.parse(req.body);
+    await authService.requestDeletion(userPrincipal(req), input);
+    clearRefreshCookie(res);
+    res.status(204).end();
+  };
+
+  const cancelDeletion: RequestHandler = async (req, res) => {
+    const { token } = cancelDeletionRequestSchema.parse(req.body);
+    await authService.cancelDeletion(token);
+    res.status(204).end();
+  };
+
   const guest: RequestHandler = (req, res) => {
     // Chỉ làm mới phiên khách đã có; phiên mới được cấp khi khách vào phòng (DL-028).
     const issued = authService.refreshGuestSession(readCookie(req, GUEST_COOKIE));
@@ -146,6 +161,8 @@ export function createAuthController(authService: AuthService, cookies: AuthCook
     forgotPassword,
     resetPassword,
     changePassword,
+    deleteAccount,
+    cancelDeletion,
     guest,
   };
 }

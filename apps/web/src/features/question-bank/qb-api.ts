@@ -1,6 +1,7 @@
 import {
   createUploadResponseSchema,
   MEDIA_RULES,
+  type MediaKind,
   type MediaView,
   mediaKindOf,
   mediaViewSchema,
@@ -110,11 +111,18 @@ export function useDeleteQuestions() {
 // --- Media (BR-QB-02) ---
 
 /** Kiểm tra định dạng/dung lượng phía trình duyệt; server kiểm tra lại sau khi upload. */
-export function mediaProblem(file: File): string | null {
+export function mediaProblem(
+  file: File,
+  maxBytes: Record<MediaKind, number> = {
+    image: MEDIA_RULES.image.maxBytes,
+    video: MEDIA_RULES.video.maxBytes,
+    audio: MEDIA_RULES.audio.maxBytes,
+  },
+): string | null {
   const kind = mediaKindOf(file.type);
   if (!kind)
     return 'Định dạng không được hỗ trợ. Dùng ảnh JPG, PNG, WEBP; video MP4; âm thanh MP3.';
-  const max = MEDIA_RULES[kind].maxBytes;
+  const max = maxBytes[kind];
   if (file.size > max) {
     return `Tệp vượt dung lượng cho phép (tối đa ${Math.round(max / (1024 * 1024))} MB).`;
   }

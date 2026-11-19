@@ -22,6 +22,9 @@ export interface MatchQuestion {
   mediaId: string | null;
   /** Điểm mặc định của câu (vòng Về đích xếp câu theo mức điểm, DL-043). */
   defaultPoints?: number | null;
+  /** Môn/chủ đề (trận tạo trước P7 không có). */
+  subject?: string | null;
+  topic?: string | null;
 }
 
 /** Kịch bản và câu hỏi chốt lúc bắt đầu trận (BR-SCRIPT-03). Bất biến trong suốt trận. */
@@ -118,4 +121,27 @@ export type EngineEffect =
       detail: Record<string, unknown>;
       reason: string | null;
     }
+  | {
+      kind: 'round_summary';
+      roundIndex: number;
+      roundType: MatchRoundType;
+      items: QuestionSummary[];
+    }
   | { kind: 'finished' };
+
+/** Kết quả của một ghế ở một câu (thống kê mục 9.4, 14). */
+export interface QuestionOutcome {
+  seat: number;
+  result: 'correct' | 'wrong' | 'skipped';
+  /** Thời gian trả lời theo server; `null` khi không trả lời trên thiết bị. */
+  elapsedMs: number | null;
+  /** Giành quyền trả lời bằng chuông. */
+  buzzWon: boolean;
+}
+
+/** Một câu đã dùng trong vòng cùng kết quả theo ghế. */
+export interface QuestionSummary {
+  ref: string;
+  question: MatchQuestion;
+  outcomes: QuestionOutcome[];
+}

@@ -40,6 +40,8 @@ type Dialog =
 
 function StatusBadge({ user }: { user: AdminUser }) {
   if (user.status === 'locked') return <Badge tone="red">Đã khóa</Badge>;
+  if (user.status === 'pending_deletion') return <Badge tone="orange">Chờ xóa</Badge>;
+  if (user.status === 'deleted') return <Badge tone="slate">Đã xóa</Badge>;
   if (!user.emailVerified) return <Badge tone="amber">Chưa xác minh email</Badge>;
   return <Badge tone="green">Hoạt động</Badge>;
 }
@@ -92,10 +94,13 @@ function UserRow({
         {user.status === 'locked' && user.lockedReason && (
           <p className="mt-1 max-w-48 text-xs text-slate-600">Lý do: {user.lockedReason}</p>
         )}
+        {user.warningCount > 0 && (
+          <p className="mt-1 text-xs text-orange-800">Đã cảnh báo {user.warningCount} lần</p>
+        )}
       </td>
       <td className="px-2 py-3 text-slate-700">{formatLastActive(user.lastActiveAt)}</td>
       <td className="py-3 pl-2 pr-4">
-        {isSelf ? (
+        {isSelf || user.status === 'pending_deletion' || user.status === 'deleted' ? (
           <span className="text-slate-500">—</span>
         ) : (
           <>
@@ -254,6 +259,8 @@ export function AdminUsersPage() {
           <option value="">Tất cả</option>
           <option value="active">Hoạt động</option>
           <option value="locked">Đã khóa</option>
+          <option value="pending_deletion">Chờ xóa</option>
+          <option value="deleted">Đã xóa</option>
         </SelectField>
         <Button type="submit">Tìm</Button>
       </form>

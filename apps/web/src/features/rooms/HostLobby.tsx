@@ -18,6 +18,7 @@ import {
   VISIBILITY_LABELS,
 } from './room-format';
 import { ActionMenu, type MenuItem, PlayerStateLabel, SeatChip } from './room-ui';
+import { RoomReportButton } from '../reports/RoomReportButton';
 
 type Confirm =
   { kind: 'kick' | 'ban'; participant: ParticipantView } | { kind: 'code' | 'close' } | null;
@@ -208,6 +209,7 @@ export function HostLobby({
               </button>
             </div>
           )}
+          <RoomReportButton state={state} meId={null} isHost />
         </div>
       </header>
 

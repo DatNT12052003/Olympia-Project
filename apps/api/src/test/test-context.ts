@@ -38,6 +38,15 @@ import type { RoomEvents } from '../modules/rooms/room-events';
 import { createRoomsModule } from '../modules/rooms/rooms.module';
 import type { RoomsService } from '../modules/rooms/rooms.service';
 import { createOrganizationsService } from '../modules/organizations/organizations.service';
+import { createReportsService, type ReportsService } from '../modules/reports/reports.service';
+import {
+  createSettingsService,
+  defaultSettingsFromEnv,
+  roomsConfigFrom,
+  type SettingsService,
+} from '../modules/settings/settings.service';
+import { createDataRetention, type DataRetention } from '../modules/users/data-retention';
+import { createAdminService, type AdminService } from '../modules/admin/admin.service';
 import { createScriptsService, type ScriptsService } from '../modules/scripts/scripts.service';
 import { createAdminUsersService } from '../modules/users/admin-users.service';
 import { UserEntity } from '../modules/users/user.entity';
@@ -65,6 +74,10 @@ export interface TestContext {
   questionBank: QuestionBankModule;
   scriptsService: ScriptsService;
   game: GameModule;
+  settingsService: SettingsService;
+  reportsService: ReportsService;
+  adminService: AdminService;
+  dataRetention: DataRetention;
   /** Module âm thanh/hình ảnh với gateway LiveKit giả. */
   av: AvModule;
   fakeAv: FakeAvGateway;
@@ -133,6 +146,17 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     },
   });
   const organizationsService = createOrganizationsService(dataSource);
+  const settingsService = createSettingsService({
+    dataSource,
+    defaults: defaultSettingsFromEnv({
+      MAX_ACTIVE_ROOMS_PER_HOST: options.maxActiveRoomsPerHost ?? 5,
+      MAX_SPECTATORS_PER_ROOM: 200,
+      RECONNECT_GRACE_SECONDS: options.reconnectGraceSeconds ?? 120,
+      ROOM_IDLE_MINUTES: 60,
+      HOST_RECONNECT_MINUTES: options.hostReconnectMinutes ?? 10,
+    }),
+    logger: silentLogger,
+  });
   const redis = new Redis(testRedisUrl(), { lazyConnect: true, maxRetriesPerRequest: 1 });
   await redis.connect();
   const keyPrefix = `test:${randomUUID()}:`;
@@ -154,12 +178,8 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     limiters: memoryLimiterFactory,
     authService,
     scripts: scriptsService.roomScripts,
-    config: {
-      maxActiveRoomsPerHost: options.maxActiveRoomsPerHost ?? 5,
-      maxSpectatorsPerRoom: 200,
-      reconnectGraceSeconds: options.reconnectGraceSeconds ?? 120,
-      roomIdleMinutes: 60,
-    },
+    // Cấu hình phòng đọc từ cấu hình hệ thống (DL-049); mặc định theo tùy chọn của test.
+    config: roomsConfigFrom(settingsService),
     ...(options.now ? { now: options.now } : {}),
   });
 
@@ -173,7 +193,12 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     scripts: scriptsService,
     sources: questionBank.questionSources,
     logger: silentLogger,
-    hostReconnectMinutes: options.hostReconnectMinutes ?? 10,
+    hostReconnectMinutes: () => settingsService.get().hostReconnectMinutes,
+    results: {
+      wasRoomMember: rooms.lobbyService.wasMember,
+      countHostedRooms: (hostUserId) => rooms.roomsService.countHosted(hostUserId),
+      staffCanView: (actor, hostUserId) => organizationsService.inStaffScope(actor, hostUserId),
+    },
     ...(options.matchNow ? { now: options.matchNow } : {}),
   });
 
@@ -187,19 +212,64 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
   });
   rooms.events.attach(av.roomEvents);
 
+  const adminUsersService = createAdminUsersService({
+    dataSource,
+    authService,
+    organizationsService,
+  });
+  const adminService = createAdminService({
+    dataSource,
+    logger: silentLogger,
+    forceEndMatch: (roomId, actorUserId) => game.runtime.forceEnd(roomId, actorUserId),
+    forceCloseRoom: (roomId) => rooms.roomsService.forceClose(roomId),
+  });
+  const reportsService = createReportsService({
+    dataSource,
+    limiters: memoryLimiterFactory,
+    mailer: {
+      send(message) {
+        mails.push(message);
+        return Promise.resolve();
+      },
+    },
+    logger: silentLogger,
+    publicSets: questionBank.publicSetsService,
+    rooms: rooms.lobbyService,
+    closeRoom: (actor, roomId, reason) => adminService.closeRoom(actor, roomId, reason),
+    lockUser: async (actor, userId, reason) => {
+      await adminUsersService.lock(actor, userId, { reason });
+    },
+    organizations: organizationsService,
+  });
+  const dataRetention = createDataRetention({
+    dataSource,
+    anonymizers: [
+      (manager, userId) => game.resultsService.anonymizePlayer(manager, userId),
+      (manager, userId) => rooms.lobbyService.anonymizeUser(manager, userId),
+      (manager, userId) => reportsService.anonymizeUser(manager, userId),
+    ],
+    tryLock: () => Promise.resolve(true),
+    logger: silentLogger,
+    ...(options.now ? { now: options.now } : {}),
+  });
+
   const app = createApp({
     env: { CORS_ORIGINS: ['http://localhost:5173'], TRUST_PROXY: 0, COOKIE_SECURE: false },
     logger: silentLogger,
     healthService: createHealthService(options.healthChecks ?? {}, 50),
     authService,
     usersService: createUsersService(dataSource),
-    adminUsersService: createAdminUsersService({ dataSource, authService, organizationsService }),
+    adminUsersService,
     organizationsService,
     roomsService: rooms.roomsService,
     lobbyService: rooms.lobbyService,
     questionBank,
     scriptsService,
     matchService: game.matchService,
+    resultsService: game.resultsService,
+    settingsService,
+    reportsService,
+    adminService,
     avService: av.avService,
     limiters: memoryLimiterFactory,
   });
@@ -217,6 +287,10 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     questionBank,
     scriptsService,
     game,
+    settingsService,
+    reportsService,
+    adminService,
+    dataRetention,
     av,
     fakeAv,
     redis,
@@ -240,7 +314,8 @@ export interface TestUserOptions {
   emailVerified?: boolean;
   canHost?: boolean;
   organizationId?: string | null;
-  status?: 'active' | 'locked';
+  status?: 'active' | 'locked' | 'pending_deletion';
+  deletionRequestedAt?: Date;
 }
 
 /** Tạo người dùng trực tiếp trong DB (không qua đăng ký, không tốn rate limit). */
@@ -258,8 +333,10 @@ export async function createUser(
     emailVerifiedAt: options.emailVerified === false ? null : new Date(),
     canHost: options.canHost ?? true,
     organizationId: options.organizationId ?? null,
-    status: locked ? 'locked' : 'active',
+    status: options.status ?? 'active',
     lockedAt: locked ? new Date() : null,
+    deletionRequestedAt:
+      options.status === 'pending_deletion' ? (options.deletionRequestedAt ?? new Date()) : null,
     privacyAcceptedAt: new Date(),
   });
   await ctx.dataSource.getRepository(UserEntity).save(user);

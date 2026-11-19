@@ -38,7 +38,9 @@ export type EngineInput =
   | { type: 'choice'; seat: number; choice: PlayerChoice }
   | { type: 'timer'; timerId: string }
   | { type: 'presence'; who: 'host' | number; connected: boolean }
-  | { type: 'host_timeout' };
+  | { type: 'host_timeout' }
+  /** Quản trị viên đóng phòng vi phạm khi đang thi (15.1, 15.2). */
+  | { type: 'force_end' };
 
 export interface EngineResult {
   state: MatchState;
@@ -214,7 +216,19 @@ export function applyInput(
     state.pause = { reason, since: now };
     changed = true;
   };
+  /** Ghi tóm tắt câu hỏi và kết quả của vòng hiện tại trước khi rời vòng (mục 14). */
+  const summarizeRound = () => {
+    const current = state.rounds[state.roundIndex];
+    if (!current) return;
+    effects.push({
+      kind: 'round_summary',
+      roundIndex: state.roundIndex,
+      roundType: current.type,
+      items: roundPlugin(current.type).summary(state.round),
+    });
+  };
   const finish = (reason: MatchEndReason) => {
+    summarizeRound();
     state.status = 'finished';
     state.endReason = reason;
     state.pause = null;
@@ -304,6 +318,7 @@ export function applyInput(
       finish('completed');
       return;
     }
+    summarizeRound();
     state.spare = [...(state.spare ?? []), ...plugin().spare(state.round)];
     state.timer = null;
     const scores = Object.fromEntries(state.players.map((p) => [String(p.seat), p.score]));
@@ -538,6 +553,14 @@ export function applyInput(
       if (state.status !== 'finished' && state.hostDisconnectedAt !== null) {
         ctx.intervention('abnormal_end', { hostDisconnectedAt: state.hostDisconnectedAt });
         finish('abnormal');
+      }
+      break;
+
+    case 'force_end':
+      if (state.status !== 'finished') {
+        ctx.intervention('force_end', {});
+        finish('abnormal');
+        log('Quản trị viên đã đóng phòng');
       }
       break;
   }

@@ -42,7 +42,7 @@ Nếu quy mô nhóm khác, cần ước lượng lại thời lượng ở mục
 | P4        | Game Engine lõi, kịch bản, vòng Khởi động  | 3 tuần               | P2, P3      | **M2**      | Đã xong |
 | P5        | Ba vòng còn lại, chế độ tự động            | 3 tuần               | P4          |             | Đã xong |
 | P6        | Video call và voice chat                   | 2 tuần               | P3          | **M3** (cùng P5) | Đã code, chờ review/merge; chưa thử video trên staging/4G |
-| P7        | Kết quả, lịch sử, thống kê, quản trị       | 2 tuần               | P4          |             | Chưa làm |
+| P7        | Kết quả, lịch sử, thống kê, quản trị       | 2 tuần               | P4          |             | Đã code, chờ review/merge; chưa chạy E2E Playwright; chưa có chế độ quản trị viên "vào giám sát" trong phòng |
 | P8        | Hoàn thiện, kiểm thử tải, nghiệm thu, phát hành | 2 tuần          | P5, P6, P7  | **M4**      | Chưa làm |
 
 > **Theo dõi tiến độ:** cập nhật cột "Trạng thái" mỗi khi một giai đoạn xong (merge vào `develop`) hoặc có phần chưa đạt tiêu chí. Cập nhật lần cuối: 2026-11-19.
@@ -189,7 +189,7 @@ Mỗi hạng mục trong một giai đoạn chỉ được coi là xong khi: có
 | Trước P2         | DL-006 (kiểm duyệt public), DL-025 (object storage dev) |
 | Trước P4         | DL-003, DL-004, DL-013                         |
 | Trước P6         | DL-007, DL-019                                 |
-| Trước P7         | DL-008                                         |
+| Trước P7         | DL-008 (đã chốt 2026-11-19)                    |
 | Trước P8         | DL-009, DL-023, DL-024                         |
 
 ---

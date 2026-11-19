@@ -10,7 +10,7 @@ import {
 } from '@olympia/shared';
 import { z } from 'zod';
 import { apiGet, apiPatch, apiPost } from '../../lib/api-client';
-import { applySession, updateCurrentUser } from '../../lib/auth-session';
+import { applySession, handleSessionExpired, updateCurrentUser } from '../../lib/auth-session';
 
 const userEnvelopeSchema = z.object({ user: currentUserSchema });
 
@@ -58,4 +58,18 @@ export async function updateProfile(input: UpdateProfileRequest): Promise<Curren
   const { user } = await apiPatch('/me', input, { schema: userEnvelopeSchema, auth: true });
   updateCurrentUser(user);
   return user;
+}
+
+/**
+ * Yêu cầu xóa tài khoản (DL-008): server thu hồi mọi phiên và gửi email kèm liên kết giữ lại tài
+ * khoản; trình duyệt xóa phiên cục bộ.
+ */
+export async function deleteAccount(password: string): Promise<void> {
+  await apiPost('/auth/delete-account', { password }, { auth: true });
+  handleSessionExpired();
+}
+
+/** Giữ lại tài khoản bằng liên kết trong email (hủy yêu cầu xóa). */
+export function cancelDeletion(token: string): Promise<undefined> {
+  return apiPost('/auth/cancel-deletion', { token });
 }

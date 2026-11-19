@@ -199,3 +199,16 @@ export const SpeakerOffIcon = (props: IconProps) => (
     <path d="M11 5L6 9H2v6h4l5 4zM22 9l-6 6M16 9l6 6" />
   </Icon>
 );
+
+export const ClockIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Icon>
+);
+
+export const FlagIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M4 22V4M4 4h12l-2 4 2 4H4" />
+  </Icon>
+);

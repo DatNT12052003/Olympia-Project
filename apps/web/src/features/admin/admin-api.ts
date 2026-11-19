@@ -1,6 +1,8 @@
 import {
+  adminRoomListSchema,
   type AdminUser,
   type AdminUserList,
+  auditLogListSchema,
   adminUserListSchema,
   adminUserSchema,
   type ListUsersQuery,
@@ -9,6 +11,12 @@ import {
   organizationListSchema,
   type OrganizationRequest,
   organizationSchema,
+  reportListSchema,
+  type ReportStatus,
+  reportViewSchema,
+  type ResolveReportRequest,
+  systemSettingsResponseSchema,
+  type UpdateSystemSettings,
   type UpdateUserRequest,
 } from '@olympia/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -134,4 +142,101 @@ export function useRemoveManager() {
     ({ organizationId, userId }: { organizationId: string; userId: string }) =>
       apiDelete(`/admin/organizations/${organizationId}/managers/${userId}`, { auth: true }),
   );
+}
+
+// --- P7: cấu hình hệ thống, giám sát phòng, nhật ký, báo cáo vi phạm ---
+
+export const p7Keys = {
+  settings: ['admin', 'settings'] as const,
+  rooms: ['admin', 'rooms'] as const,
+  auditLogs: (query: { category: string; page: number }) => ['admin', 'audit-logs', query] as const,
+  reports: (status: ReportStatus) => ['admin', 'reports', status] as const,
+  allReports: ['admin', 'reports'] as const,
+};
+
+export function useSystemSettings() {
+  return useQuery({
+    queryKey: p7Keys.settings,
+    queryFn: ({ signal }) =>
+      apiGet('/admin/settings', { schema: systemSettingsResponseSchema, auth: true, signal }),
+  });
+}
+
+export function useUpdateSystemSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: UpdateSystemSettings) =>
+      apiPatch('/admin/settings', patch, { schema: systemSettingsResponseSchema, auth: true }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(p7Keys.settings, data);
+      return queryClient.invalidateQueries({ queryKey: ['settings', 'public'] });
+    },
+  });
+}
+
+export function useAdminRooms() {
+  return useQuery({
+    queryKey: p7Keys.rooms,
+    queryFn: async ({ signal }) =>
+      (await apiGet('/admin/rooms', { schema: adminRoomListSchema, auth: true, signal })).items,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useCloseRoomAsStaff() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ roomId, reason }: { roomId: string; reason: string }) =>
+      apiPost(`/admin/rooms/${roomId}/close`, { reason }, { auth: true }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: p7Keys.rooms }),
+  });
+}
+
+export function useAuditLogs(query: { category: string; page: number; pageSize: number }) {
+  return useQuery({
+    queryKey: p7Keys.auditLogs(query),
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams();
+      if (query.category) params.set('category', query.category);
+      params.set('page', String(query.page));
+      params.set('pageSize', String(query.pageSize));
+      return apiGet(`/admin/audit-logs?${params.toString()}`, {
+        schema: auditLogListSchema,
+        auth: true,
+        signal,
+      });
+    },
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useReports(status: ReportStatus, { enabled = true } = {}) {
+  return useQuery({
+    enabled,
+    queryKey: p7Keys.reports(status),
+    queryFn: ({ signal }) =>
+      apiGet(`/moderation/reports?status=${status}`, {
+        schema: reportListSchema,
+        auth: true,
+        signal,
+      }),
+  });
+}
+
+export function useResolveReport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ reportId, ...body }: ResolveReportRequest & { reportId: string }) =>
+      (
+        await apiPost(`/moderation/reports/${reportId}/resolve`, body, {
+          schema: z.object({ report: reportViewSchema }),
+          auth: true,
+        })
+      ).report,
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: p7Keys.allReports }),
+        queryClient.invalidateQueries({ queryKey: adminKeys.allUsers }),
+      ]),
+  });
 }

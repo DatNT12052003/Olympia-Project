@@ -43,3 +43,23 @@ export function passwordResetEmail(to: string, displayName: string, url: string)
     ),
   };
 }
+
+export function deletionRequestedEmail(
+  to: string,
+  displayName: string,
+  url: string,
+  purgeDate: string,
+): MailMessage {
+  const subject = 'Yêu cầu xóa tài khoản Olympia Online';
+  return {
+    to,
+    subject,
+    ...layout(
+      subject,
+      `Chào ${displayName}, tài khoản của bạn sẽ bị xóa vào ngày ${purgeDate}. Trước thời điểm đó bạn vẫn có thể giữ lại tài khoản.`,
+      'Giữ lại tài khoản',
+      url,
+      `Sau khi xóa, email, ảnh đại diện và hồ sơ bị xóa; kết quả các trận đã thi được giữ dưới tên "Người chơi đã xóa". Nếu bạn không yêu cầu xóa, hãy mở liên kết trên và đổi mật khẩu ngay.`,
+    ),
+  };
+}

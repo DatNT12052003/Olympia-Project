@@ -1,5 +1,60 @@
-import type { PlayerAnswer } from '@olympia/shared';
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import type { MatchRoundType, PlayerAnswer } from '@olympia/shared';
+import { Column, CreateDateColumn, Entity, PrimaryColumn, PrimaryGeneratedColumn } from 'typeorm';
+import type { MatchQuestion } from './engine/match-state';
+
+/** Câu hỏi đã dùng trong trận (mục 14), ghi khi rời vòng (DL-047). */
+@Entity({ name: 'match_questions' })
+export class MatchQuestionEntity {
+  @PrimaryColumn({ name: 'match_id', type: 'uuid' })
+  matchId!: string;
+
+  @PrimaryColumn({ name: 'question_ref', type: 'varchar', length: 40 })
+  questionRef!: string;
+
+  @Column({ name: 'round_index', type: 'smallint' })
+  roundIndex!: number;
+
+  @Column({ name: 'round_type', type: 'text' })
+  roundType!: MatchRoundType;
+
+  /** Thứ tự câu trong vòng. */
+  @Column({ type: 'smallint' })
+  ordinal!: number;
+
+  @Column({ name: 'source_question_id', type: 'uuid', nullable: true })
+  sourceQuestionId!: string | null;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  subject!: string | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  topic!: string | null;
+
+  @Column({ type: 'jsonb' })
+  question!: MatchQuestion;
+}
+
+/** Kết quả của một ghế ở một câu (thống kê 9.4). */
+@Entity({ name: 'match_question_outcomes' })
+export class MatchQuestionOutcomeEntity {
+  @PrimaryColumn({ name: 'match_id', type: 'uuid' })
+  matchId!: string;
+
+  @PrimaryColumn({ name: 'question_ref', type: 'varchar', length: 40 })
+  questionRef!: string;
+
+  @PrimaryColumn({ type: 'smallint' })
+  seat!: number;
+
+  @Column({ type: 'text' })
+  result!: 'correct' | 'wrong' | 'skipped';
+
+  @Column({ name: 'elapsed_ms', type: 'integer', nullable: true })
+  elapsedMs!: number | null;
+
+  @Column({ name: 'buzz_won', type: 'boolean', default: false })
+  buzzWon!: boolean;
+}
 
 /** Câu trả lời của Player, thời điểm nhận theo server (BR-R3-01). */
 @Entity({ name: 'match_answers' })

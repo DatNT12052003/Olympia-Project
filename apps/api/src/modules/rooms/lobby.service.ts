@@ -297,6 +297,18 @@ export function createLobbyService(deps: LobbyServiceDeps) {
     };
   }
 
+  /** Người xem đã từng được nhận vào phòng. */
+  async function wasMember(roomId: string, principal: Principal): Promise<boolean> {
+    if (principal.kind === 'guest' && principal.roomId !== roomId) return false;
+    return dataSource.getRepository(RoomParticipantEntity).existsBy({
+      roomId,
+      status: In(['approved', 'left']),
+      ...(principal.kind === 'user'
+        ? { userId: principal.userId }
+        : { guestId: principal.guestId }),
+    });
+  }
+
   return {
     buildState,
 
@@ -644,6 +656,74 @@ export function createLobbyService(deps: LobbyServiceDeps) {
         displayName: participant.displayName,
       };
     },
+
+    /**
+     * Đối tượng của báo cáo hành vi trong phòng (15.3): người báo cáo phải là Host hoặc đã ở trong
+     * phòng; bỏ trống người tham gia nghĩa là báo cáo Host.
+     */
+    async reportTarget(
+      roomId: string,
+      participantId: string | null,
+      reporter: Principal,
+    ): Promise<{
+      label: string;
+      hostUserId: string;
+      subject: { userId: string | null; guestId: string | null; name: string };
+    }> {
+      const room = await dataSource.getRepository(RoomEntity).findOneBy({ id: roomId });
+      const isHost = reporter.kind === 'user' && room?.hostUserId === reporter.userId;
+      if (!room || (!isHost && !(await wasMember(roomId, reporter)))) {
+        throw new NotFoundError('Không tìm thấy phòng.');
+      }
+      let subject: { userId: string | null; guestId: string | null; name: string };
+      if (participantId) {
+        const p = await dataSource
+          .getRepository(RoomParticipantEntity)
+          .findOneBy({ id: participantId, roomId });
+        if (!p) throw new NotFoundError('Không tìm thấy người tham gia.');
+        subject = { userId: p.userId, guestId: p.guestId, name: p.displayName };
+      } else {
+        const host = await dataSource.getRepository(UserEntity).findOneBy({ id: room.hostUserId });
+        subject = { userId: room.hostUserId, guestId: null, name: host?.displayName ?? 'Host' };
+      }
+      if (reporter.kind === 'user' && subject.userId === reporter.userId) {
+        throw new BadRequestError('Không thể tự báo cáo chính mình.');
+      }
+      return { label: room.name, hostUserId: room.hostUserId, subject };
+    },
+
+    /** Quản trị viên chặn khách khỏi phòng khi xử lý báo cáo (DL-050). */
+    async staffBanGuest(
+      roomId: string,
+      guestId: string,
+      displayName: string,
+      actorUserId: string,
+    ): Promise<void> {
+      const removed = await dataSource.transaction(async (manager) => {
+        const room = await lockRoom(manager, roomId);
+        await manager
+          .createQueryBuilder()
+          .insert()
+          .into(RoomBanEntity)
+          .values({ roomId, userId: null, guestId, displayName, bannedByUserId: actorUserId })
+          .orIgnore()
+          .execute();
+        const participant = await findActive(manager, roomId, `g:${guestId}`);
+        // Đang thi thì giữ ghế tới hết trận; lệnh cấm có hiệu lực khi vào lại.
+        if (!participant || room.status !== 'open') return null;
+        await removeFromRoom(manager, participant, 'kicked');
+        return participant;
+      });
+      if (removed) await afterRemoval(roomId, removed, 'banned');
+    },
+
+    /** Ẩn danh tên người dùng đã xóa tài khoản trong danh sách người tham gia (BR-DATA-03). */
+    async anonymizeUser(manager: EntityManager, userId: string): Promise<void> {
+      await manager.update(RoomParticipantEntity, { userId }, { displayName: 'Người dùng đã xóa' });
+    },
+
+    /** Người xem đã từng được nhận vào phòng (khán giả xem tổng kết trận, mục 9.4). */
+    wasMember,
 
     async roomForReactions(roomId: string): Promise<RoomEntity | null> {
       return dataSource.getRepository(RoomEntity).findOneBy({ id: roomId });

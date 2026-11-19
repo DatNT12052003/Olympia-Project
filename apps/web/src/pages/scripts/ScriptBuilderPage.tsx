@@ -942,6 +942,16 @@ function Builder({ script }: { script?: ScriptDetail }) {
               setDraft((d) => ({ ...d, settings: { ...d.settings, tiebreakEnabled: v } }))
             }
           />
+          <Toggle
+            label="Công bố đáp án sau trận"
+            checked={draft.settings.revealAnswersAfterMatch}
+            onChange={(v) =>
+              setDraft((d) => ({
+                ...d,
+                settings: { ...d.settings, revealAnswersAfterMatch: v },
+              }))
+            }
+          />
         </div>
         <details className="rounded-xl border border-slate-200 bg-white px-4 py-3">
           <summary className="cursor-pointer text-sm font-semibold">

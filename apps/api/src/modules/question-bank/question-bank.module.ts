@@ -1,3 +1,4 @@
+import type { MediaKind } from '@olympia/shared';
 import type { DataSource } from 'typeorm';
 import type { LimiterFactory } from '../../infrastructure/rate-limit/rate-limiter';
 import type { ObjectStorage } from '../../infrastructure/storage/object-storage';
@@ -11,6 +12,8 @@ export interface QuestionBankModuleDeps {
   dataSource: DataSource;
   storage: ObjectStorage;
   limiters: LimiterFactory;
+  /** Dung lượng media tối đa theo cấu hình hệ thống (DL-049). */
+  mediaMaxBytes?: (kind: MediaKind) => number;
   now?: () => Date;
 }
 
@@ -19,10 +22,17 @@ export function createQuestionBankModule({
   dataSource,
   storage,
   limiters,
+  mediaMaxBytes,
   now,
 }: QuestionBankModuleDeps) {
   const clock = now ? { now } : {};
-  const mediaService = createMediaService({ dataSource, storage, limiters, ...clock });
+  const mediaService = createMediaService({
+    dataSource,
+    storage,
+    limiters,
+    ...(mediaMaxBytes ? { maxBytes: mediaMaxBytes } : {}),
+    ...clock,
+  });
   const questionsService = createQuestionsService({ dataSource, media: mediaService });
   const questionSetsService = createQuestionSetsService({
     dataSource,

@@ -1,17 +1,25 @@
 import {
   type CurrentUser,
+  ACCOUNT_DELETION_GRACE_DAYS,
   changePasswordRequestSchema,
+  deleteAccountRequestSchema,
   DISPLAY_NAME_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
   updateProfileRequestSchema,
 } from '@olympia/shared';
 import { useMutation } from '@tanstack/react-query';
 import { type FormEvent, useState } from 'react';
+import { Link, useNavigate } from 'react-router';
 import { Alert } from '../components/Alert';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { TextField } from '../components/TextField';
-import { changePassword, resendVerification, updateProfile } from '../features/auth/auth-api';
+import {
+  changePassword,
+  deleteAccount,
+  resendVerification,
+  updateProfile,
+} from '../features/auth/auth-api';
 import { roleLabel } from '../features/auth/role-labels';
 import { useAuth } from '../features/auth/use-auth';
 import { errorMessage } from '../lib/api-client';
@@ -167,6 +175,72 @@ function ChangePasswordForm() {
   );
 }
 
+/** Xóa tài khoản (BR-DATA-03, DL-008): ân hạn 30 ngày, giữ lại bằng liên kết trong email. */
+function DeleteAccountSection() {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | undefined>();
+  const navigate = useNavigate();
+  const mutation = useMutation({
+    mutationFn: deleteAccount,
+    onSuccess: () => navigate('/', { replace: true }),
+  });
+
+  return (
+    <Card>
+      <h2 className="text-lg font-semibold text-slate-900">Xóa tài khoản</h2>
+      <p className="mt-1.5 text-sm text-slate-600">
+        Tài khoản bị khóa ngay và xóa hẳn sau {ACCOUNT_DELETION_GRACE_DAYS} ngày: email, ảnh đại
+        diện và hồ sơ bị xóa; kết quả các trận đã thi được giữ dưới tên “Người chơi đã xóa”. Trong
+        thời gian này bạn có thể giữ lại tài khoản bằng liên kết gửi qua email.
+      </p>
+      {!open ? (
+        <Button variant="danger" className="mt-4" onClick={() => setOpen(true)}>
+          Xóa tài khoản
+        </Button>
+      ) : (
+        <form
+          noValidate
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault();
+            const parsed = deleteAccountRequestSchema.safeParse({ password });
+            if (!parsed.success) {
+              setError(parsed.error.issues[0]?.message);
+              return;
+            }
+            setError(undefined);
+            mutation.mutate(password);
+          }}
+          className="mt-4 flex flex-col gap-3"
+        >
+          <TextField
+            label="Nhập mật khẩu để xác nhận"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            error={error}
+          />
+          {mutation.isError && <Alert tone="error">{errorMessage(mutation.error)}</Alert>}
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" onClick={() => setOpen(false)}>
+              Để sau
+            </Button>
+            <Button
+              type="submit"
+              variant="danger"
+              loading={mutation.isPending}
+              loadingText="Đang xử lý…"
+            >
+              Xác nhận xóa tài khoản
+            </Button>
+          </div>
+        </form>
+      )}
+    </Card>
+  );
+}
+
 export function AccountPage() {
   const { user } = useAuth();
   const logoutMutation = useMutation({ mutationFn: logout });
@@ -190,6 +264,16 @@ export function AccountPage() {
       {/* key: nạp lại giá trị form khi tài khoản thay đổi. */}
       <ProfileForm key={user.id} user={user} />
       <ChangePasswordForm />
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+        <h2 className="text-lg font-semibold text-slate-900">Lịch sử và thống kê</h2>
+        <p className="mt-1.5 text-sm text-slate-600">
+          Xem các trận đã thi, số trận thắng và tỷ lệ trả lời đúng theo môn.
+        </p>
+        <Link to="/lich-su" className="mt-3 inline-block font-semibold">
+          Mở lịch sử trận
+        </Link>
+      </section>
+      <DeleteAccountSection />
     </div>
   );
 }

@@ -26,7 +26,7 @@
 | DL-005 | 2026-11-18 | Nghiệp vụ  | Phạm vi Manager theo Tổ chức                                               | Đã chấp nhận    |
 | DL-006 | 2026-11-18 | Nghiệp vụ  | Bắt buộc kiểm duyệt bộ câu hỏi public trước khi hiển thị                   | Đề xuất         |
 | DL-007 | 2026-11-18 | Nghiệp vụ  | Spectator xem video Host; giới hạn số Spectator mỗi phòng                  | Đã chấp nhận    |
-| DL-008 | 2026-11-18 | Nghiệp vụ  | Không ghi hình ở phiên bản đầu; có chính sách dữ liệu cá nhân              | Đề xuất         |
+| DL-008 | 2026-11-18 | Nghiệp vụ  | Không ghi hình ở phiên bản đầu; có chính sách dữ liệu cá nhân              | Đã chấp nhận    |
 | DL-009 | 2026-11-18 | Nghiệp vụ  | Chỉ tiêu phi chức năng phiên bản đầu, nghiệm thu bằng kiểm thử tải         | Đề xuất         |
 | DL-010 | 2026-11-18 | Kiến trúc  | Modular monolith với 4 module tách biệt                                    | Đã chấp nhận    |
 | DL-011 | 2026-11-18 | Kiến trúc  | Server là nguồn sự thật cho trạng thái, thời gian và điểm                  | Đã chấp nhận    |
@@ -65,6 +65,10 @@
 | DL-044 | 2026-11-19 | Nghiệp vụ  | Câu hỏi phụ dùng câu chưa dùng của trận; không cộng điểm                  | Đã chấp nhận    |
 | DL-045 | 2026-11-19 | Kiến trúc  | Chế độ tự động: plugin tự đi bước kế qua đồng hồ `auto`, engine nghỉ giữa vòng | Đã chấp nhận    |
 | DL-046 | 2026-11-19 | Nghiệp vụ  | Video/voice: kết nối từ sảnh chờ, quyền nói theo engine, khóa mic do server áp | Đã chấp nhận    |
+| DL-047 | 2026-11-19 | Kiến trúc  | Lưu câu đã dùng và kết quả theo ghế khi rời vòng (tóm tắt của plugin)      | Đã chấp nhận    |
+| DL-048 | 2026-11-19 | Nghiệp vụ  | Công bố đáp án sau trận: thiết lập kịch bản, Host bật/tắt từng trận       | Đã chấp nhận    |
+| DL-049 | 2026-11-19 | Nghiệp vụ  | Cấu hình hệ thống lưu DB, Super Admin sửa trên web, áp dụng ngay          | Đã chấp nhận    |
+| DL-050 | 2026-11-19 | Nghiệp vụ  | Báo cáo vi phạm: cảnh báo qua email, chặn phiên khách, phạm vi Manager    | Đã chấp nhận    |
 
 ---
 
@@ -127,7 +131,8 @@
 
 - **Bối cảnh:** Đặc tả Q8. Ghi hình làm tăng chi phí lưu trữ và rủi ro pháp lý, nhất là với người dùng chưa thành niên.
 - **Quyết định:** Không ghi hình/ghi âm ở phiên bản đầu. Áp dụng chính sách dữ liệu: xóa tài khoản trong 30 ngày với kết quả trận được ẩn danh; nhật ký giữ 12 tháng; rà soát pháp lý trước phát hành.
-- **Hệ quả:** Cần job xóa/ẩn danh dữ liệu; cần văn bản chính sách quyền riêng tư.
+- **Chốt (2026-11-19, Product Owner):** Xóa tài khoản có **ân hạn 30 ngày**: người dùng xác nhận bằng mật khẩu (`POST /api/auth/delete-account`) → trạng thái `pending_deletion`, thu hồi mọi phiên, không đăng nhập được (lỗi `ACCOUNT_PENDING_DELETION`), email gửi liên kết "Giữ lại tài khoản" (`/giu-tai-khoan`, token `cancel_deletion` hiệu lực 30 ngày). Hết ân hạn, job bảo trì dữ liệu (mỗi giờ, khóa Redis) xóa email/ảnh/hồ sơ (`status = deleted`), bỏ phân công Manager và đổi tên trong lịch sử trận, danh sách người tham gia, báo cáo thành "Người chơi đã xóa"/"Người dùng đã xóa". Cùng job xóa nhật ký quản trị và nhật ký can thiệp quá 12 tháng.
+- **Hệ quả:** Cần văn bản chính sách quyền riêng tư và rà soát pháp lý trước phát hành (P8, BR-DATA-06).
 - **Liên quan:** BR-AV-03, mục 14.1.
 
 ### DL-009 – Chỉ tiêu phi chức năng phiên bản đầu
@@ -307,6 +312,27 @@
   - Kết nối ngay từ sảnh chờ để kiểm tra thiết bị (board LobbyPlayer). Không có/không cho phép camera, micro vẫn thi (BR-AV-01). Người bị kick/ban/rời phòng bị ngắt khỏi phòng LiveKit; phòng đóng thì đóng phòng LiveKit.
   - Lỗi SFU chỉ ghi log, không ném ra luồng phòng/trận (BR-AV-02); client hiện "không kết nối được video" và nút thử lại.
 - **Hệ quả:** Production cần LiveKit có TURN (TLS 443/UDP) cho mạng trường học, 4G, và `LIVEKIT_API_SECRET` thật (≥ 32 ký tự). Không ghi hình (BR-AV-03): không bật egress.
+
+### DL-047 – Kết quả theo câu được ghi khi rời vòng
+
+- **Bối cảnh:** Thống kê 9.4 và mục 14 cần đúng/sai/bỏ qua, thời gian trả lời, số lần giành quyền theo từng câu; trạng thái của plugin vòng bị thay khi chuyển vòng nên không đọc lại được sau trận. `match_answers` chỉ có gợi ý chấm tự động, không có kết quả Host chấm.
+- **Quyết định:** Mỗi plugin cài thêm `summary(state)` trả các câu đã hiển thị (bỏ câu chưa mở và câu bị hủy) kèm kết quả theo ghế. Engine phát hiệu ứng `round_summary` trước khi rời vòng và khi kết thúc trận (kể cả Host kết thúc sớm, kết thúc bất thường); runtime ghi `match_questions` (bản sao câu, môn/chủ đề) và `match_question_outcomes` trong cùng transaction. Từ khóa CNV: mỗi lần đoán được tính là giành quyền. Về đích: Player chính và người giành quyền đều có kết quả. Câu bị bỏ qua có Player đến lượt thì Player đó "bỏ qua". Tên phòng lúc thi được lưu vào `matches.room_name` để module Game không phải đọc bảng của Room Management.
+- **Hệ quả:** Trận đã chạy trước P7 không có thống kê theo câu. Thứ hạng: điểm giảm dần, người thắng câu hỏi phụ đứng trên người cùng điểm; trận bị hủy kết quả không tính vào thống kê.
+
+### DL-048 – Công bố đáp án sau trận
+
+- **Bối cảnh:** 9.4 "Hiển thị đáp án và giải thích (tùy Host bật)". Product Owner chọn ngày 2026-11-19.
+- **Quyết định:** Kịch bản có thiết lập "Công bố đáp án sau trận" (mặc định bật), được chép vào `matches.answers_public` khi trận kết thúc; Host bật/tắt lại cho từng trận ở trang tổng kết. Host và quản trị viên luôn xem được; Player và khán giả của phòng chỉ xem khi đang bật.
+
+### DL-049 – Cấu hình hệ thống sửa trên web
+
+- **Bối cảnh:** 15.1: Super Admin cấu hình giới hạn phòng, kích thước media, thời gian chờ, danh sách reaction. Product Owner chọn ngày 2026-11-19.
+- **Quyết định:** Bảng `system_settings` (một dòng mỗi khóa); giá trị mặc định lấy từ biến môi trường (`MAX_ACTIVE_ROOMS_PER_HOST`, `MAX_SPECTATORS_PER_ROOM`, `RECONNECT_GRACE_SECONDS`, `ROOM_IDLE_MINUTES`, `HOST_RECONNECT_MINUTES`) và đặc tả (ảnh 5 MB, video/âm thanh 50 MB, 4 reaction của mục 13). Giá trị nằm trong bộ nhớ để đọc đồng bộ; instance sửa áp dụng ngay, instance khác nạp lại sau tối đa 15 giây. Reaction chọn trong bảng 8 biểu tượng. Mỗi lần sửa ghi nhật ký quản trị. Giao diện đọc reaction và dung lượng media qua `GET /api/settings/public`.
+
+### DL-050 – Báo cáo vi phạm
+
+- **Bối cảnh:** 15.3; thiết kế Reports có thêm "Chặn phiên khách". Product Owner chọn ngày 2026-11-19.
+- **Quyết định:** Chỉ tài khoản gửi được báo cáo (BR-AUTH-06), tối đa 10 báo cáo/giờ. Đối tượng: phiên bản bộ public (người sở hữu bộ) hoặc người trong phòng (người báo cáo phải là Host hoặc đã ở trong phòng; bỏ trống = báo cáo Host). Cách xử lý: bỏ qua; gỡ nội dung (bộ public → `withdrawn`, phòng → đóng phòng, kết thúc trận nếu đang thi); cảnh báo (email + `users.warning_count`); chặn phiên khách (cấm khách khỏi phòng); khóa tài khoản (như quản lý người dùng). Báo cáo bộ public: mọi Manager xử lý (kiểm duyệt chung); báo cáo trong phòng: Manager của tổ chức người bị báo cáo (khách: tổ chức của Host), Super Admin xử lý tất cả. Cảnh báo/khóa phải nằm trong phạm vi quản lý (DL-005).
 
 ---
 

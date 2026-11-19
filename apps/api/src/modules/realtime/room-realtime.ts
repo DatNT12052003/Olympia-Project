@@ -2,7 +2,8 @@ import {
   type Ack,
   CommonErrorCode,
   hasRoomPermission,
-  REACTIONS,
+  DEFAULT_REACTIONS,
+  REACTION_PALETTE,
   RoomErrorCode,
   RoomPermission,
   type RoomRole,
@@ -29,7 +30,7 @@ function channelsOf(roomId: string): string[] {
 }
 
 const subscribePayload = z.object({ roomId: z.uuid() });
-const reactionPayload = z.object({ roomId: z.uuid(), emoji: z.enum(REACTIONS) });
+const reactionPayload = z.object({ roomId: z.uuid(), emoji: z.enum(REACTION_PALETTE) });
 
 function viewerRoomRole(viewer: RoomViewer): RoomRole | null {
   return viewer.role === 'pending' ? null : viewer.role;
@@ -59,6 +60,8 @@ export interface RoomRealtimeDeps {
   limiters: LimiterFactory;
   logger: Logger;
   now?: () => number;
+  /** Reaction đang bật theo cấu hình hệ thống (DL-049); mặc định 4 reaction của mục 13. */
+  reactions?: () => readonly string[];
   /** Kết nối của một danh tính trong phòng đổi trạng thái (Game Engine tạm dừng trận khi cần). */
   onPresence?: (roomId: string, key: string, connected: boolean) => void;
 }
@@ -75,6 +78,7 @@ export function createRoomRealtime({
   logger,
   now = Date.now,
   onPresence = () => undefined,
+  reactions = () => DEFAULT_REACTIONS,
 }: RoomRealtimeDeps) {
   // BR-SPEC-02: 1 reaction / giây / người.
   const reactionLimiter = limiters({ keyPrefix: 'reaction', points: 1, durationSeconds: 1 });
@@ -188,6 +192,16 @@ export function createRoomRealtime({
           ack({
             ok: false,
             error: { code: CommonErrorCode.Forbidden, message: 'Bạn không được gửi reaction.' },
+          });
+          return;
+        }
+        if (!reactions().includes(emoji)) {
+          ack({
+            ok: false,
+            error: {
+              code: CommonErrorCode.ValidationError,
+              message: 'Reaction này đang không được bật.',
+            },
           });
           return;
         }

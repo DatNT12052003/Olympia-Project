@@ -9,7 +9,7 @@ import type {
   ScriptSettings,
 } from '@olympia/shared';
 import { ConflictError } from '../../../shared/errors/app-error';
-import type { MatchQuestion, TimerState } from './match-state';
+import type { MatchQuestion, QuestionSummary, TimerState } from './match-state';
 
 /**
  * Interface plugin vòng thi (DL-012, BR-ROUND-01). Engine không chứa logic riêng của vòng nào:
@@ -121,6 +121,11 @@ export interface RoundPlugin<S = unknown> {
   spare(state: S): MatchQuestion[];
   /** Media cần cấp URL khi dựng view. */
   mediaIds(state: S): string[];
+  /**
+   * Tóm tắt các câu đã dùng của vòng và kết quả theo ghế (mục 14), gọi khi rời vòng hoặc kết thúc
+   * trận. Bỏ câu chưa hiển thị và câu bị hủy.
+   */
+  summary(state: S): QuestionSummary[];
   view(state: S, ctx: ViewContext): RoundView;
 }
 

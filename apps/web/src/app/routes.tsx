@@ -26,6 +26,13 @@ import { RoomFormPage } from '../pages/rooms/RoomFormPage';
 import { RoomPage } from '../pages/rooms/RoomPage';
 import { ScriptBuilderPage } from '../pages/scripts/ScriptBuilderPage';
 import { ScriptsPage } from '../pages/scripts/ScriptsPage';
+import { MatchHistoryPage } from '../pages/results/MatchHistoryPage';
+import { MatchResultPage } from '../pages/results/MatchResultPage';
+import { KeepAccountPage } from '../pages/auth/KeepAccountPage';
+import { AdminSettingsPage } from '../pages/admin/AdminSettingsPage';
+import { AdminRoomsPage } from '../pages/admin/AdminRoomsPage';
+import { AuditLogPage } from '../pages/admin/AuditLogPage';
+import { ReportsPage } from '../pages/admin/ReportsPage';
 import { AppLayout } from './AppLayout';
 
 /**
@@ -47,6 +54,15 @@ export const routes: RouteObject[] = [
       { path: 'quen-mat-khau', element: <ForgotPasswordPage /> },
       { path: 'dat-lai-mat-khau', element: <ResetPasswordPage /> },
       { path: 'xac-minh-email', element: <VerifyEmailPage /> },
+      { path: 'giu-tai-khoan', element: <KeepAccountPage /> },
+      { path: 'tran/:matchId', element: <MatchResultPage /> },
+      {
+        path: 'lich-su',
+        element: <RequireAuth />,
+        children: [
+          { element: <HostLayout />, children: [{ index: true, element: <MatchHistoryPage /> }] },
+        ],
+      },
       {
         path: 'quan-tri',
         element: <RequireAuth permission={SystemPermission.ManageUsers} />,
@@ -57,6 +73,15 @@ export const routes: RouteObject[] = [
               { index: true, element: <AdminUsersPage /> },
               { path: 'to-chuc', element: <AdminOrganizationsPage /> },
               { path: 'duyet-noi-dung', element: <ModerationPage /> },
+              { path: 'bao-cao', element: <ReportsPage /> },
+              { path: 'phong', element: <AdminRoomsPage /> },
+              {
+                element: <RequireAuth permission={SystemPermission.ConfigureSystem} />,
+                children: [
+                  { path: 'cau-hinh', element: <AdminSettingsPage /> },
+                  { path: 'nhat-ky', element: <AuditLogPage /> },
+                ],
+              },
             ],
           },
         ],

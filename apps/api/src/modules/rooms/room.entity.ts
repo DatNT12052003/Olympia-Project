@@ -69,7 +69,7 @@ export class RoomEntity {
   closedAt!: Date | null;
 
   @Column({ name: 'closed_reason', type: 'varchar', length: 32, nullable: true })
-  closedReason!: 'host' | 'inactive' | null;
+  closedReason!: 'host' | 'inactive' | 'moderation' | null;
 
   @Column({ name: 'last_activity_at', type: 'timestamptz' })
   lastActivityAt!: Date;

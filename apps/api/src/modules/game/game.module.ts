@@ -8,6 +8,7 @@ import type { RoomsService } from '../rooms/rooms.service';
 import type { ScriptsService } from '../scripts/scripts.service';
 import { createMatchRuntime } from './match-runtime';
 import { createMatchService } from './match.service';
+import { createResultsService, type ResultsServiceDeps } from './results.service';
 import type { MatchStore } from './match-store';
 
 export interface GameModuleDeps {
@@ -20,7 +21,8 @@ export interface GameModuleDeps {
   scripts: Pick<ScriptsService, 'loadForMatch'>;
   sources: Pick<QuestionSourcesService, 'load'>;
   logger: Logger;
-  hostReconnectMinutes: number;
+  hostReconnectMinutes: number | (() => number);
+  results: Pick<ResultsServiceDeps, 'wasRoomMember' | 'countHostedRooms' | 'staffCanView'>;
   now?: () => number;
   sweepMs?: number;
 }
@@ -40,7 +42,10 @@ export function createGameModule(deps: GameModuleDeps) {
       roomChanged: (roomId) => deps.roomEvents.stateChanged(roomId),
     },
     logger: deps.logger,
-    hostReconnectMs: deps.hostReconnectMinutes * 60_000,
+    hostReconnectMs: () =>
+      (typeof deps.hostReconnectMinutes === 'function'
+        ? deps.hostReconnectMinutes()
+        : deps.hostReconnectMinutes) * 60_000,
     ...(deps.now ? { now: deps.now } : {}),
     ...(deps.sweepMs ? { sweepMs: deps.sweepMs } : {}),
   });
@@ -51,7 +56,12 @@ export function createGameModule(deps: GameModuleDeps) {
     runtime,
     ...(deps.now ? { now: deps.now } : {}),
   });
-  return { runtime, matchService };
+  const resultsService = createResultsService({
+    dataSource: deps.dataSource,
+    media: deps.media,
+    ...deps.results,
+  });
+  return { runtime, matchService, resultsService };
 }
 
 export type GameModule = ReturnType<typeof createGameModule>;

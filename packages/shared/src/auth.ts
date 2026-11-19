@@ -19,6 +19,8 @@ export const AuthErrorCode = {
   /** Token xác minh email / đặt lại mật khẩu không hợp lệ, đã dùng hoặc hết hạn. */
   InvalidActionToken: 'INVALID_ACTION_TOKEN',
   CsrfHeaderMissing: 'CSRF_HEADER_MISSING',
+  /** Tài khoản đang trong ân hạn chờ xóa (DL-008). */
+  AccountPendingDeletion: 'ACCOUNT_PENDING_DELETION',
 } as const;
 
 export type AuthErrorCode = (typeof AuthErrorCode)[keyof typeof AuthErrorCode];
@@ -96,6 +98,18 @@ export type RegisterRequest = z.input<typeof registerRequestSchema>;
 export type LoginRequest = z.input<typeof loginRequestSchema>;
 export type ResetPasswordRequest = z.input<typeof resetPasswordRequestSchema>;
 export type ChangePasswordRequest = z.input<typeof changePasswordRequestSchema>;
+
+/** Ân hạn trước khi xóa hẳn tài khoản (BR-DATA-03, DL-008). */
+export const ACCOUNT_DELETION_GRACE_DAYS = 30;
+
+/** Yêu cầu xóa tài khoản: nhập lại mật khẩu để xác nhận. */
+export const deleteAccountRequestSchema = z.object({
+  password: z.string().min(1, 'Nhập mật khẩu để xác nhận.').max(PASSWORD_MAX_LENGTH),
+});
+export type DeleteAccountRequest = z.input<typeof deleteAccountRequestSchema>;
+
+/** Hủy yêu cầu xóa bằng liên kết trong email. */
+export const cancelDeletionRequestSchema = z.object({ token: actionTokenSchema });
 export type UpdateProfileRequest = z.input<typeof updateProfileRequestSchema>;
 
 /** `details` của lỗi INVALID_CREDENTIALS: số lần thử còn lại trước khi bị tạm khóa (BR-AUTH-03). */

@@ -8,12 +8,15 @@ import { ReactionBar } from './room-stage';
 import { leaveRoom, setReady } from './rooms-api';
 import { initials, SEAT_BG, SEAT_BORDER } from './room-format';
 import { PlayerStateLabel, SeatChip } from './room-ui';
+import { RoomReportButton } from '../reports/RoomReportButton';
 
 function LobbyHeader({
+  meId,
   state,
   onLeave,
   leaving,
 }: {
+  meId: string;
   state: RoomState;
   onLeave: () => void;
   leaving: boolean;
@@ -31,6 +34,7 @@ function LobbyHeader({
             {state.room.name}
           </h1>
         </div>
+        <RoomReportButton state={state} meId={meId} isHost={false} />
         <button
           type="button"
           onClick={onLeave}
@@ -126,7 +130,7 @@ export function MemberLobby({
 
   return (
     <>
-      <LobbyHeader state={state} onLeave={() => void onLeave()} leaving={leaving} />
+      <LobbyHeader state={state} meId={me.id} onLeave={() => void onLeave()} leaving={leaving} />
       <main className="mx-auto flex w-full max-w-[1320px] flex-1 flex-wrap items-start gap-6 px-4 py-5 sm:px-6 sm:py-6">
         <section
           aria-label="Bạn trong phòng"

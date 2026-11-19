@@ -99,6 +99,7 @@ export function createMatchService(deps: MatchServiceDeps) {
             id: matchId,
             roomId,
             hostUserId: actor.userId,
+            roomName: room.name,
             scriptId: script.id,
             controlMode: room.controlMode,
             status: 'running',

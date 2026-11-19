@@ -23,7 +23,7 @@ import {
   type RoundPlugin,
   type ViewContext,
 } from '../engine/round-plugin';
-import { isDefinitive } from './round-helpers';
+import { isDefinitive, isSummarized, outcomesOf } from './round-helpers';
 
 /**
  * Plugin vòng Khởi động (7.1, DL-004): phần thi riêng (mỗi Player lần lượt trả lời câu của mình)
@@ -550,6 +550,21 @@ export const warmupPlugin: RoundPlugin<WarmupState> = {
     if (!q || FINAL_PHASES.has(q.phase)) return null;
     if (q.part === 'individual') return q.ownerSeat;
     return q.phase === 'answering' ? q.answeringSeat : null;
+  },
+
+  summary(state) {
+    return Object.values(state.questions)
+      .filter((q) => isSummarized(q.phase))
+      .map((q) => ({
+        ref: q.ref,
+        question: q.question,
+        outcomes: outcomesOf(
+          q.results,
+          q.answers,
+          q.part === 'shared' ? q.attempted : [],
+          q.phase === 'skipped' && q.ownerSeat !== null ? [q.ownerSeat] : [],
+        ),
+      }));
   },
 
   mediaIds(state) {

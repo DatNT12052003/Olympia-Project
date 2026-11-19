@@ -342,6 +342,8 @@ export const scriptSettingsSchema = z.object({
   autoRevealSeconds: z.number().int().min(1).max(60).default(3),
   /** 9.3: câu hỏi phụ khi các Player dẫn đầu hòa điểm sau vòng cuối; tắt thì đồng hạng. */
   tiebreakEnabled: z.boolean().default(true),
+  /** 9.4, DL-048: Player và khán giả xem đáp án, giải thích ở trang tổng kết sau trận. */
+  revealAnswersAfterMatch: z.boolean().default(true),
 });
 export type ScriptSettings = z.infer<typeof scriptSettingsSchema>;
 
@@ -353,6 +355,7 @@ export const DEFAULT_SCRIPT_SETTINGS: ScriptSettings = {
   autoReadSeconds: 3,
   autoRevealSeconds: 3,
   tiebreakEnabled: true,
+  revealAnswersAfterMatch: true,
 };
 
 /** Thiết lập của kịch bản cũ (trước P5) thiếu trường mới: điền giá trị mặc định. */

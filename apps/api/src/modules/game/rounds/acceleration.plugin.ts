@@ -20,6 +20,8 @@ import {
   assertRef,
   FINAL_PHASES,
   isDefinitive,
+  isSummarized,
+  outcomesOf,
   questionView,
   type SeatEntry,
   suggest,
@@ -404,6 +406,16 @@ export const accelerationPlugin: RoundPlugin<AccelerationState> = {
 
   spare(state) {
     return state.reserves.map((ref) => state.questions[ref]!.question);
+  },
+
+  summary(state) {
+    return Object.values(state.questions)
+      .filter((q) => isSummarized(q.phase))
+      .map((q) => ({
+        ref: q.ref,
+        question: q.question,
+        outcomes: outcomesOf(q.results, q.answers),
+      }));
   },
 
   mediaIds(state) {
