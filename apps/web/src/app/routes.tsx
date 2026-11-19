@@ -24,6 +24,8 @@ import { HostRoomsPage } from '../pages/rooms/HostRoomsPage';
 import { JoinRoomPage } from '../pages/rooms/JoinRoomPage';
 import { RoomFormPage } from '../pages/rooms/RoomFormPage';
 import { RoomPage } from '../pages/rooms/RoomPage';
+import { ScriptBuilderPage } from '../pages/scripts/ScriptBuilderPage';
+import { ScriptsPage } from '../pages/scripts/ScriptsPage';
 import { AppLayout } from './AppLayout';
 
 /**
@@ -66,6 +68,15 @@ export const routes: RouteObject[] = [
           { element: <HostLayout />, children: [{ index: true, element: <HostRoomsPage /> }] },
           { path: 'tao', element: <RoomFormPage /> },
           { path: ':roomId/sua', element: <RoomFormPage /> },
+        ],
+      },
+      {
+        path: 'kich-ban',
+        element: <RequireAuth permission={SystemPermission.CreateRooms} />,
+        children: [
+          { element: <HostLayout />, children: [{ index: true, element: <ScriptsPage /> }] },
+          { path: 'moi', element: <ScriptBuilderPage /> },
+          { path: ':scriptId', element: <ScriptBuilderPage /> },
         ],
       },
       {

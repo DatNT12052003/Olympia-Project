@@ -48,6 +48,10 @@ export class RoomEntity {
   @Column({ name: 'reactions_enabled', type: 'boolean', default: true })
   reactionsEnabled!: boolean;
 
+  /** Kịch bản đã chọn cho trận (mục 6). */
+  @Column({ name: 'script_id', type: 'uuid', nullable: true })
+  scriptId!: string | null;
+
   @Column({ type: 'text', default: 'draft' })
   status!: RoomStatus;
 

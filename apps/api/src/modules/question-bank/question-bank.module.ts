@@ -3,6 +3,7 @@ import type { LimiterFactory } from '../../infrastructure/rate-limit/rate-limite
 import type { ObjectStorage } from '../../infrastructure/storage/object-storage';
 import { createMediaService } from '../media/media.service';
 import { createPublicSetsService } from './public-sets.service';
+import { createQuestionSourcesService } from './question-sources.service';
 import { createQuestionSetsService } from './question-sets.service';
 import { createQuestionsService } from './questions.service';
 
@@ -29,7 +30,14 @@ export function createQuestionBankModule({
     ...clock,
   });
   const publicSetsService = createPublicSetsService({ dataSource, media: mediaService, ...clock });
-  return { mediaService, questionsService, questionSetsService, publicSetsService };
+  const questionSources = createQuestionSourcesService({ dataSource });
+  return {
+    mediaService,
+    questionsService,
+    questionSetsService,
+    publicSetsService,
+    questionSources,
+  };
 }
 
 export type QuestionBankModule = ReturnType<typeof createQuestionBankModule>;

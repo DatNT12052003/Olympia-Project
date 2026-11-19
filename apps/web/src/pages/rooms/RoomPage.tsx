@@ -1,5 +1,9 @@
 import { RoomErrorCode, type RoomRemovedReason } from '@olympia/shared';
 import { Link, useParams } from 'react-router';
+import { HostMatch } from '../../features/match/HostMatch';
+import { MatchResultDialog } from '../../features/match/match-ui';
+import { PlayerMatch } from '../../features/match/PlayerMatch';
+import { SpectatorMatch } from '../../features/match/SpectatorMatch';
 import { HostLobby } from '../../features/rooms/HostLobby';
 import { MemberLobby } from '../../features/rooms/MemberLobby';
 import {
@@ -124,13 +128,55 @@ function Room({ roomId }: { roomId: string }) {
   }
 
   const self = !isHost ? (state.players.find((p) => p.id === me.data?.id) ?? me.data) : null;
+  const match = channel.match;
+  const live = state.room.status === 'in_match' && match !== null && match.status !== 'finished';
+
+  let content;
+  if (live) {
+    content =
+      match.audience === 'host' ? (
+        <HostMatch
+          view={match}
+          room={state}
+          clockOffset={channel.clockOffset}
+          onCommand={channel.sendCommand}
+        />
+      ) : match.audience === 'player' ? (
+        <PlayerMatch
+          view={match}
+          room={state}
+          clockOffset={channel.clockOffset}
+          actions={{ sendAnswer: channel.sendAnswer, buzz: channel.buzz }}
+        />
+      ) : (
+        <SpectatorMatch
+          view={match}
+          room={state}
+          clockOffset={channel.clockOffset}
+          onSendReaction={channel.sendReaction}
+        />
+      );
+  } else if (state.room.status === 'in_match' && match?.status !== 'finished') {
+    content = (
+      <main className="flex flex-1 items-center justify-center p-4">
+        <p role="status" className="text-stage-200">
+          Đang tải trận đấu…
+        </p>
+      </main>
+    );
+  } else {
+    content = isHost ? (
+      <HostLobby state={state} onSendReaction={channel.sendReaction} />
+    ) : (
+      me.data && <MemberLobby state={state} me={me.data} onSendReaction={channel.sendReaction} />
+    );
+  }
 
   return (
     <StagePage>
-      {isHost ? (
-        <HostLobby state={state} onSendReaction={channel.sendReaction} />
-      ) : (
-        me.data && <MemberLobby state={state} me={me.data} onSendReaction={channel.sendReaction} />
+      {content}
+      {match?.status === 'finished' && (
+        <MatchResultDialog view={match} onClose={channel.dismissMatch} />
       )}
       <ReactionLayer reactions={channel.reactions} />
       {channel.connection === 'offline' && channel.offlineSince !== null && (

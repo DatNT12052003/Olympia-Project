@@ -50,6 +50,8 @@ const envSchema = z
     RECONNECT_GRACE_SECONDS: z.coerce.number().int().min(5).default(120),
     /** Phòng Open không hoạt động thì tự đóng (BR-ROOM-02, DL-030). */
     ROOM_IDLE_MINUTES: z.coerce.number().int().min(1).default(60),
+    /** Host mất kết nối quá thời gian này thì trận kết thúc bất thường (4.5). */
+    HOST_RECONNECT_MINUTES: z.coerce.number().int().min(1).default(10),
 
     /** Object storage S3-compatible cho media câu hỏi (DL-025: SeaweedFS khi dev). */
     S3_ENDPOINT: z.url().default('http://localhost:8340'),

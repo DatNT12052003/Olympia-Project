@@ -6,7 +6,12 @@ import type { PasswordHasher } from '../auth/password-hasher';
 import { createLobbyService, type LobbyConfig } from './lobby.service';
 import type { PresenceStore } from './presence-store';
 import { createRoomEventsRelay } from './room-events';
-import { createRoomsService, type RoomsConfig } from './rooms.service';
+import {
+  createRoomsService,
+  noRoomScripts,
+  type RoomScripts,
+  type RoomsConfig,
+} from './rooms.service';
 
 export interface RoomsModuleDeps {
   dataSource: DataSource;
@@ -14,6 +19,8 @@ export interface RoomsModuleDeps {
   presence: PresenceStore;
   limiters: LimiterFactory;
   authService: Pick<AuthService, 'startGuestSession'>;
+  /** Kịch bản của Host (module Kịch bản); mặc định không có kịch bản nào. */
+  scripts?: RoomScripts;
   config: RoomsConfig & LobbyConfig;
   now?: () => Date;
 }
@@ -21,11 +28,13 @@ export interface RoomsModuleDeps {
 /** Ghép Room Management: dịch vụ phòng, sảnh chờ và bộ chuyển sự kiện tới tầng realtime. */
 export function createRoomsModule(deps: RoomsModuleDeps) {
   const events = createRoomEventsRelay();
+  const scripts = deps.scripts ?? noRoomScripts;
   const roomsService = createRoomsService({
     dataSource: deps.dataSource,
     passwords: deps.passwords,
     presence: deps.presence,
     events,
+    scripts,
     config: deps.config,
     ...(deps.now ? { now: deps.now } : {}),
   });
@@ -37,6 +46,7 @@ export function createRoomsModule(deps: RoomsModuleDeps) {
     limiters: deps.limiters,
     startGuestSession: (roomId, name) => deps.authService.startGuestSession(roomId, name),
     closeRoom: roomsService.closeRoom,
+    scripts,
     config: deps.config,
     ...(deps.now ? { now: deps.now } : {}),
   });

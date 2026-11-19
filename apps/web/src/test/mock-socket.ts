@@ -42,6 +42,14 @@ export class FakeSocket {
     return this;
   }
 
+  /** `socket.timeout(ms).emit(...)`: ack nhận thêm tham số lỗi đầu tiên (`null` khi thành công). */
+  timeout(_ms: number) {
+    return {
+      emit: (event: string, payload: unknown, ack?: (err: Error | null, result: unknown) => void) =>
+        this.emit(event, payload, (result) => ack?.(null, result)),
+    };
+  }
+
   fire(event: string, ...args: unknown[]): void {
     for (const listener of this.listeners.get(event) ?? []) listener(...args);
   }

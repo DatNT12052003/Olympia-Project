@@ -5,6 +5,7 @@ import { Button } from '../../components/Button';
 import { CheckIcon, ChevronLeftIcon, CloseIcon, PlayIcon } from '../../components/icons';
 import { Modal } from '../../components/Modal';
 import { errorMessage } from '../../lib/api-client';
+import { startMatch } from '../match/match-api';
 import { ReactionBar } from './room-stage';
 import { participantAction, type ParticipantAction, useRoomAction } from './rooms-api';
 import {
@@ -43,6 +44,7 @@ export function HostLobby({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
   const [skipReady, setSkipReady] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [showAllSpectators, setShowAllSpectators] = useState(false);
 
   const seated = state.players.filter((p) => p.seat !== null);
@@ -50,6 +52,21 @@ export function HostLobby({
   const readyCount = seated.filter((p) => p.ready).length;
   const enoughPlayers = seated.length >= 2;
   const allReady = enoughPlayers && readyCount === seated.length;
+
+  const script = state.room.script;
+  const canStart = enoughPlayers && (allReady || skipReady) && script !== null;
+
+  async function start() {
+    setStarting(true);
+    setNotice(null);
+    try {
+      await startMatch(roomId, { skipReady });
+    } catch (error) {
+      setNotice({ tone: 'error', text: errorMessage(error) });
+    } finally {
+      setStarting(false);
+    }
+  }
 
   async function act(participant: ParticipantView, action: ParticipantAction, done?: string) {
     setBusy(true);
@@ -366,6 +383,14 @@ export function HostLobby({
               Bắt đầu không cần chờ tất cả Sẵn sàng
             </label>
             <div className="flex flex-wrap items-center gap-3">
+              {script && (
+                <Link
+                  to={`/kich-ban/${script.id}`}
+                  className="inline-flex h-12 items-center rounded-xl border border-stage-700 px-4 text-[15px] font-semibold text-white no-underline hover:bg-white/5 hover:text-white hover:no-underline"
+                >
+                  Xem kịch bản
+                </Link>
+              )}
               <Link
                 to={`/phong-thi/${roomId}/sua`}
                 className="inline-flex h-12 items-center rounded-xl border border-stage-700 px-4 text-[15px] font-semibold text-white no-underline hover:bg-white/5 hover:text-white hover:no-underline"
@@ -381,20 +406,23 @@ export function HostLobby({
               </button>
               <button
                 type="button"
-                disabled
+                disabled={!canStart || starting}
+                onClick={() => void start()}
                 aria-describedby="start-match-hint"
                 className="inline-flex h-12 items-center gap-2 rounded-xl bg-accent-400 px-6 text-base font-extrabold text-stage-900 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
               >
                 <PlayIcon />
-                {enoughPlayers ? 'Bắt đầu trận' : 'Chưa đủ người'}
+                {starting ? 'Đang bắt đầu…' : enoughPlayers ? 'Bắt đầu trận' : 'Chưa đủ người'}
               </button>
             </div>
             <p id="start-match-hint" className="w-full text-[13px] text-stage-200">
-              {!enoughPlayers
-                ? 'Cần ít nhất 2 người chơi đã có vị trí.'
-                : !allReady && !skipReady
-                  ? 'Chờ tất cả người chơi bấm Sẵn sàng, hoặc chọn bắt đầu không cần chờ.'
-                  : 'Đủ điều kiện. Chức năng bắt đầu trận đang được phát triển.'}
+              {!script
+                ? 'Phòng chưa có kịch bản. Chọn kịch bản trong “Sửa cấu hình”.'
+                : !enoughPlayers
+                  ? 'Cần ít nhất 2 người chơi đã có vị trí.'
+                  : !allReady && !skipReady
+                    ? 'Chờ tất cả người chơi bấm Sẵn sàng, hoặc chọn bắt đầu không cần chờ.'
+                    : `Kịch bản: ${script.name}. Sẵn sàng bắt đầu.`}
             </p>
           </div>
         </section>

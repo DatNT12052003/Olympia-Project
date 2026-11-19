@@ -107,3 +107,48 @@ export const BookIcon = (props: IconProps) => (
     <path d="M4 19V5" />
   </Icon>
 );
+
+export const PauseIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none" />
+    <rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none" />
+  </Icon>
+);
+
+export const BellIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+    <path d="M10 21a2 2 0 0 0 4 0" />
+  </Icon>
+);
+
+export const ListIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+  </Icon>
+);
+
+export const ChevronUpIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M6 15l6-6 6 6" />
+  </Icon>
+);
+
+export const ChevronDownIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M6 9l6 6 6-6" />
+  </Icon>
+);
+
+export const ChevronRightIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M9 6l6 6-6 6" />
+  </Icon>
+);
+
+export const AlertTriangleIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M12 3l9 16H3z" />
+    <path d="M12 10v4M12 17h.01" />
+  </Icon>
+);

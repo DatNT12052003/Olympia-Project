@@ -18,9 +18,13 @@ import {
 } from './modules/question-bank/question-bank.routes';
 import type { HealthService } from './modules/health/health.service';
 import type { LimiterFactory } from './infrastructure/rate-limit/rate-limiter';
+import { createMatchRouter } from './modules/game/match.routes';
+import type { MatchService } from './modules/game/match.service';
 import type { LobbyService } from './modules/rooms/lobby.service';
 import { createRoomsRouter } from './modules/rooms/rooms.routes';
 import type { RoomsService } from './modules/rooms/rooms.service';
+import { createScriptsRouter } from './modules/scripts/scripts.routes';
+import type { ScriptsService } from './modules/scripts/scripts.service';
 import { createOrganizationsRouter } from './modules/organizations/organizations.routes';
 import type { OrganizationsService } from './modules/organizations/organizations.service';
 import { createAdminUsersRouter } from './modules/users/admin-users.routes';
@@ -41,6 +45,8 @@ export interface AppDependencies {
   roomsService: RoomsService;
   lobbyService: LobbyService;
   questionBank: QuestionBankModule;
+  scriptsService: ScriptsService;
+  matchService: MatchService;
   limiters: LimiterFactory;
 }
 
@@ -55,6 +61,8 @@ export function createApp({
   roomsService,
   lobbyService,
   questionBank,
+  scriptsService,
+  matchService,
   limiters,
 }: AppDependencies): Express {
   const app = express();
@@ -81,6 +89,7 @@ export function createApp({
   api.use('/me', createMeRouter(usersService));
   api.use('/admin/users', createAdminUsersRouter(adminUsersService));
   api.use('/admin/organizations', createOrganizationsRouter(organizationsService));
+  api.use('/rooms/:roomId/match', createMatchRouter(matchService));
   api.use(
     '/rooms',
     createRoomsRouter({
@@ -95,6 +104,7 @@ export function createApp({
   api.use('/question-sets', createQuestionSetsRouter(questionBank.questionSetsService));
   api.use('/public-question-sets', createPublicSetsRouter(questionBank.publicSetsService));
   api.use('/moderation/question-sets', createModerationRouter(questionBank.publicSetsService));
+  api.use('/scripts', createScriptsRouter(scriptsService));
   app.use('/api', api);
 
   app.use(notFoundHandler);

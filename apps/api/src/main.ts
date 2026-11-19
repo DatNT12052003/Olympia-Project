@@ -12,7 +12,11 @@ import { createArgon2PasswordHasher } from './modules/auth/password-hasher';
 import type { SessionsRevokedEvent } from './modules/auth/session-store';
 import { createTokenService } from './modules/auth/token-service';
 import { createHealthService } from './modules/health/health.service';
+import { createGameModule } from './modules/game/game.module';
+import { createRedisMatchStore } from './modules/game/match-store';
 import { createQuestionBankModule } from './modules/question-bank/question-bank.module';
+import { createMatchRealtime } from './modules/realtime/match-realtime';
+import { createScriptsService } from './modules/scripts/scripts.service';
 import { createRoomRealtime } from './modules/realtime/room-realtime';
 import { createRedisPresenceStore } from './modules/rooms/presence-store';
 import { createRoomMaintenance, createRoomsModule } from './modules/rooms/rooms.module';
@@ -91,12 +95,18 @@ async function main(): Promise<void> {
   });
   const organizationsService = createOrganizationsService(dataSource);
   const presence = createRedisPresenceStore(redis);
+  const questionBank = createQuestionBankModule({ dataSource, storage, limiters });
+  const scriptsService = createScriptsService({
+    dataSource,
+    sources: questionBank.questionSources,
+  });
   const rooms = createRoomsModule({
     dataSource,
     passwords,
     presence,
     limiters,
     authService,
+    scripts: scriptsService.roomScripts,
     config: {
       maxActiveRoomsPerHost: env.MAX_ACTIVE_ROOMS_PER_HOST,
       maxSpectatorsPerRoom: env.MAX_SPECTATORS_PER_ROOM,
@@ -105,7 +115,18 @@ async function main(): Promise<void> {
     },
   });
 
-  const questionBank = createQuestionBankModule({ dataSource, storage, limiters });
+  const game = createGameModule({
+    dataSource,
+    store: createRedisMatchStore(redis),
+    presence,
+    media: questionBank.mediaService,
+    rooms: rooms.roomsService,
+    roomEvents: rooms.events,
+    scripts: scriptsService,
+    sources: questionBank.questionSources,
+    logger,
+    hostReconnectMinutes: env.HOST_RECONNECT_MINUTES,
+  });
 
   const app = createApp({
     env,
@@ -118,6 +139,8 @@ async function main(): Promise<void> {
     roomsService: rooms.roomsService,
     lobbyService: rooms.lobbyService,
     questionBank,
+    scriptsService,
+    matchService: game.matchService,
     limiters,
   });
   const httpServer = createServer(app);
@@ -134,9 +157,27 @@ async function main(): Promise<void> {
     presence,
     limiters,
     logger,
+    onPresence: (roomId, key, connected) => {
+      game.runtime.onPresence(roomId, key, connected).catch((error: unknown) => {
+        logger.error({ err: error, roomId }, 'Lỗi cập nhật kết nối trong trận');
+      });
+    },
   });
+  const matchRealtime = createMatchRealtime({
+    io: realtime,
+    lobby: rooms.lobbyService,
+    runtime: game.runtime,
+    presence,
+    limiters,
+    logger,
+  });
+  game.runtime.attachPublisher(matchRealtime.publisher);
   rooms.events.attach(roomRealtime.events);
-  realtime.on('connection', (socket) => roomRealtime.register(socket));
+  realtime.on('connection', (socket) => {
+    roomRealtime.register(socket);
+    matchRealtime.register(socket);
+  });
+  await game.runtime.start();
   const maintenance = createRoomMaintenance({ lobby: rooms.lobbyService, presence, logger });
   maintenance.start();
 
@@ -150,6 +191,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     logger.info({ signal }, 'Đang tắt server');
     maintenance.stop();
+    void game.runtime.stop();
 
     const forceExit = setTimeout(() => {
       logger.error('Quá thời gian tắt server, buộc thoát');

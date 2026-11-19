@@ -59,6 +59,8 @@ export interface RoomRealtimeDeps {
   limiters: LimiterFactory;
   logger: Logger;
   now?: () => number;
+  /** Kết nối của một danh tính trong phòng đổi trạng thái (Game Engine tạm dừng trận khi cần). */
+  onPresence?: (roomId: string, key: string, connected: boolean) => void;
 }
 
 /**
@@ -72,6 +74,7 @@ export function createRoomRealtime({
   limiters,
   logger,
   now = Date.now,
+  onPresence = () => undefined,
 }: RoomRealtimeDeps) {
   // BR-SPEC-02: 1 reaction / giây / người.
   const reactionLimiter = limiters({ keyPrefix: 'reaction', points: 1, durationSeconds: 1 });
@@ -110,7 +113,10 @@ export function createRoomRealtime({
     const subscriptions = new Map<string, string>();
 
     async function markDisconnected(roomId: string, key: string): Promise<void> {
-      if (await presence.disconnect(roomId, key, socket.id, now())) events.stateChanged(roomId);
+      if (await presence.disconnect(roomId, key, socket.id, now())) {
+        events.stateChanged(roomId);
+        onPresence(roomId, key, false);
+      }
     }
 
     socket.on('room:subscribe', async (payload, ack) => {
@@ -135,6 +141,7 @@ export function createRoomRealtime({
 
         // Một kết nối hoạt động cho mỗi danh tính trong phòng: kết nối mới thay kết nối cũ.
         const previous = await presence.connect(roomId, viewer.key, socket.id, now());
+        if (!previous || previous.status === 'disconnected') onPresence(roomId, viewer.key, true);
         if (previous && previous.socketId !== socket.id) {
           io.to(previous.socketId).emit('room:removed', { roomId, reason: 'replaced' });
           io.in(previous.socketId).socketsLeave([
