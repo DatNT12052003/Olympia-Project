@@ -9,7 +9,8 @@ services:
     dockerfilePath: ./deploy/Dockerfile.api
     dockerContext: .
     # Áp dụng migration rồi chạy API (gói free không có Pre-Deploy Command).
-    dockerCommand: sh -c "node dist/infrastructure/database/run-migrations.js up && node dist/main.js"
+    # Render không xử lý dấu nháy trong dockerCommand, nên chuỗi lệnh nằm trong script npm.
+    dockerCommand: npm run start:migrate
     healthCheckPath: /api/health/live
     envVars:
       - key: NODE_ENV
