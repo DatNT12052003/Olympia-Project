@@ -186,3 +186,34 @@ describe('Định dạng hiển thị', () => {
     expect(initials('đức')).toBe('Đ');
   });
 });
+
+describe('Phòng đang hoạt động', () => {
+  it('có liên kết vào giám sát từng phòng (BR-ROLE-04)', async () => {
+    const session = signInAs('manager');
+    mockApi({
+      'POST /auth/refresh': () => jsonResponse(session),
+      'GET /admin/rooms': () =>
+        jsonResponse({
+          items: [
+            {
+              id: '00000000-0000-4000-8000-0000000000d1',
+              name: 'Ôn thi 12A1',
+              code: 'K7Q2XM',
+              status: 'in_match',
+              visibility: 'private',
+              hostId: member.id,
+              hostName: 'Trần Bình',
+              organizationName: 'THPT Chu Văn An',
+              playerCount: 4,
+              spectatorCount: 10,
+              openedAt: new Date().toISOString(),
+            },
+          ],
+        }),
+    });
+    renderApp('/quan-tri/phong');
+
+    const link = await screen.findByRole('link', { name: 'Vào giám sát phòng Ôn thi 12A1' });
+    expect(link).toHaveAttribute('href', '/phong/00000000-0000-4000-8000-0000000000d1');
+  });
+});

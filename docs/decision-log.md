@@ -69,6 +69,7 @@
 | DL-048 | 2026-11-19 | Nghiệp vụ  | Công bố đáp án sau trận: thiết lập kịch bản, Host bật/tắt từng trận       | Đã chấp nhận    |
 | DL-049 | 2026-11-19 | Nghiệp vụ  | Cấu hình hệ thống lưu DB, Super Admin sửa trên web, áp dụng ngay          | Đã chấp nhận    |
 | DL-050 | 2026-11-19 | Nghiệp vụ  | Báo cáo vi phạm: cảnh báo qua email, chặn phiên khách, phạm vi Manager    | Đã chấp nhận    |
+| DL-051 | 2026-11-20 | Nghiệp vụ  | Giám sát phòng: nhân viên vào ẩn danh, xem như khán giả, đóng phòng tại chỗ | Đề xuất         |
 
 ---
 
@@ -333,6 +334,13 @@
 
 - **Bối cảnh:** 15.3; thiết kế Reports có thêm "Chặn phiên khách". Product Owner chọn ngày 2026-11-19.
 - **Quyết định:** Chỉ tài khoản gửi được báo cáo (BR-AUTH-06), tối đa 10 báo cáo/giờ. Đối tượng: phiên bản bộ public (người sở hữu bộ) hoặc người trong phòng (người báo cáo phải là Host hoặc đã ở trong phòng; bỏ trống = báo cáo Host). Cách xử lý: bỏ qua; gỡ nội dung (bộ public → `withdrawn`, phòng → đóng phòng, kết thúc trận nếu đang thi); cảnh báo (email + `users.warning_count`); chặn phiên khách (cấm khách khỏi phòng); khóa tài khoản (như quản lý người dùng). Báo cáo bộ public: mọi Manager xử lý (kiểm duyệt chung); báo cáo trong phòng: Manager của tổ chức người bị báo cáo (khách: tổ chức của Host), Super Admin xử lý tất cả. Cảnh báo/khóa phải nằm trong phạm vi quản lý (DL-005).
+
+### DL-051 – Chế độ giám sát phòng của Super Admin/Manager
+
+- **Bối cảnh:** BR-ROLE-04, 15.2 ("vào giám sát"); ma trận 2.2: giám sát xem video/nghe âm thanh, không gửi reaction. Canvas thiết kế không có màn riêng.
+- **Quyết định:** Super Admin giám sát mọi phòng; Manager giám sát phòng của Host là thành viên thuộc tổ chức mình quản lý (cùng phạm vi `/api/admin/rooms`). Vào bằng nút "Vào giám sát" ở `/quan-tri/phong`, mở `/phong/:roomId`; không cần mã phòng/mật khẩu và không tạo lượt tham gia. Nhân viên đã vào phòng làm Player/Spectator thì giữ vai trò đó. Người giám sát nhận bản trạng thái phòng và trận như khán giả (không thấy đáp án trước khi công bố, BR-RT-01); token video chỉ xem/nghe; không gửi reaction, không trả lời/bấm chuông/điều khiển. Người giám sát **không hiện** trong danh sách phòng hay số khán giả, không ghi trạng thái kết nối và không tính vào giới hạn khán giả. Thanh "Chế độ giám sát" có nút đóng phòng (cùng API đóng phòng vi phạm, ghi nhật ký quản trị).
+- **Hệ quả:** Host và người chơi không biết đang bị giám sát; nếu cần minh bạch có thể thêm dòng "Quản trị viên đang giám sát" cho Host sau. Việc vào giám sát chưa ghi nhật ký quản trị.
+- **Liên quan:** BR-ROLE-04, 2.2, 15.1, 15.2, DL-005, DL-026.
 
 ---
 

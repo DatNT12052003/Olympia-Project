@@ -49,6 +49,8 @@ export interface LobbyServiceDeps {
 /** Vai trò của người xem trong phòng, dùng cho phân quyền realtime. */
 export type RoomViewer =
   | { role: 'host'; key: string; participant: null; displayName: string }
+  /** Super Admin/Manager vào giám sát (BR-ROLE-04): không phải người tham gia phòng. */
+  | { role: 'monitor'; key: string; participant: null; displayName: string }
   | {
       role: 'player' | 'spectator' | 'pending';
       key: string;
@@ -295,6 +297,24 @@ export function createLobbyService(deps: LobbyServiceDeps) {
       },
       reconnectGraceSeconds: config.reconnectGraceSeconds,
     };
+  }
+
+  /**
+   * Super Admin/Manager được vào giám sát phòng (BR-ROLE-04, 15.2): Super Admin mọi phòng; Manager
+   * phòng của Host là thành viên thuộc tổ chức mình quản lý (cùng phạm vi với `/api/admin/rooms`).
+   */
+  async function canMonitor(principal: UserPrincipal, room: RoomEntity): Promise<boolean> {
+    if (principal.systemRole === 'super_admin') return true;
+    if (principal.systemRole !== 'manager') return false;
+    const rows = await dataSource.query<unknown[]>(
+      `SELECT 1
+         FROM users u
+         JOIN organization_managers m ON m.organization_id = u.organization_id
+        WHERE u.id = $1 AND u.system_role = 'member' AND m.user_id = $2
+        LIMIT 1`,
+      [room.hostUserId, principal.userId],
+    );
+    return rows.length > 0;
   }
 
   /** Người xem đã từng được nhận vào phòng. */
@@ -648,7 +668,16 @@ export function createLobbyService(deps: LobbyServiceDeps) {
         return { role: 'host', key, participant: null, displayName: host?.displayName ?? 'Host' };
       }
       const participant = await findActive(dataSource.manager, roomId, presenceKey(principal));
-      if (!participant) return null;
+      if (!participant) {
+        if (principal.kind !== 'user' || !(await canMonitor(principal, room))) return null;
+        const self = await dataSource.getRepository(UserEntity).findOneBy({ id: principal.userId });
+        return {
+          role: 'monitor',
+          key,
+          participant: null,
+          displayName: self?.displayName ?? 'Quản trị viên',
+        };
+      }
       return {
         role: participant.status === 'pending' ? 'pending' : participant.role,
         key,

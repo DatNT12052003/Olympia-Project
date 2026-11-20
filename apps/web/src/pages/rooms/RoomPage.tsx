@@ -7,6 +7,7 @@ import { PlayerMatch } from '../../features/match/PlayerMatch';
 import { SpectatorMatch } from '../../features/match/SpectatorMatch';
 import { HostLobby } from '../../features/rooms/HostLobby';
 import { MemberLobby } from '../../features/rooms/MemberLobby';
+import { MonitorBar, MonitorLobby } from '../../features/rooms/MonitorView';
 import {
   ReactionLayer,
   ReconnectOverlay,
@@ -46,16 +47,21 @@ const secondaryAction =
 
 function Room({ roomId }: { roomId: string }) {
   const channel = useRoomChannel(roomId);
-  const { state } = channel;
+  const { state, monitor } = channel;
   const isHost = state?.audience === 'host';
+  // Người giám sát không phải người tham gia phòng nên không có lượt tham gia (`/me`).
+  const isMember = !isHost && !monitor;
   const me = useMyParticipation(
     roomId,
-    Boolean(state) && !isHost && !channel.removed,
+    Boolean(state) && isMember && !channel.removed,
     state?.version,
   );
 
   if (channel.removed) {
-    const message = REMOVED_MESSAGES[channel.removed];
+    const message =
+      monitor && channel.removed === 'closed'
+        ? { title: 'Phòng đã đóng', text: 'Phòng thi này đã đóng.' }
+        : REMOVED_MESSAGES[channel.removed];
     return (
       <StageMessage
         title={message.title}
@@ -67,6 +73,10 @@ function Room({ roomId }: { roomId: string }) {
           ) : isHost ? (
             <Link to="/phong-thi" className={primaryAction}>
               Về danh sách phòng
+            </Link>
+          ) : monitor ? (
+            <Link to="/quan-tri/phong" className={primaryAction}>
+              Về trang quản trị
             </Link>
           ) : (
             <Link to="/vao-phong" className={primaryAction}>
@@ -105,7 +115,7 @@ function Room({ roomId }: { roomId: string }) {
     );
   }
 
-  if (!state || (!isHost && !me.data && !me.isError)) {
+  if (!state || (isMember && !me.data && !me.isError)) {
     return (
       <StageMessage title="Đang vào phòng…">
         <span role="status">Đang kết nối tới phòng thi.</span>
@@ -113,7 +123,7 @@ function Room({ roomId }: { roomId: string }) {
     );
   }
 
-  if (!isHost && me.isError) {
+  if (isMember && me.isError) {
     return (
       <StageMessage
         title="Bạn không còn ở trong phòng"
@@ -128,7 +138,7 @@ function Room({ roomId }: { roomId: string }) {
     );
   }
 
-  const self = !isHost ? (state.players.find((p) => p.id === me.data?.id) ?? me.data) : null;
+  const self = isMember ? (state.players.find((p) => p.id === me.data?.id) ?? me.data) : null;
   const match = channel.match;
   const live = state.room.status === 'in_match' && match !== null && match.status !== 'finished';
 
@@ -158,7 +168,7 @@ function Room({ roomId }: { roomId: string }) {
           view={match}
           room={state}
           clockOffset={channel.clockOffset}
-          onSendReaction={channel.sendReaction}
+          onSendReaction={monitor ? undefined : channel.sendReaction}
         />
       );
   } else if (state.room.status === 'in_match' && match?.status !== 'finished') {
@@ -172,17 +182,22 @@ function Room({ roomId }: { roomId: string }) {
   } else {
     content = isHost ? (
       <HostLobby state={state} onSendReaction={channel.sendReaction} />
+    ) : monitor ? (
+      <MonitorLobby state={state} />
     ) : (
       me.data && <MemberLobby state={state} me={me.data} onSendReaction={channel.sendReaction} />
     );
   }
 
-  // Video/âm thanh: mọi người đã vào phòng (trừ người chờ duyệt); khán giả chỉ xem/nghe.
-  const inRoom = isHost || (self !== null && self !== undefined && self.status !== 'pending');
+  // Video/âm thanh: mọi người đã vào phòng (trừ người chờ duyệt); khán giả, người giám sát chỉ
+  // xem/nghe.
+  const inRoom =
+    isHost || monitor || (self !== null && self !== undefined && self.status !== 'pending');
   const canPublish = isHost || (self?.role === 'player' && self.status === 'approved');
 
   return (
     <StagePage>
+      {monitor && <MonitorBar state={state} />}
       <AvProvider roomId={roomId} enabled={inRoom} canPublish={canPublish}>
         {content}
       </AvProvider>
@@ -194,7 +209,7 @@ function Room({ roomId }: { roomId: string }) {
         <ReconnectOverlay
           offlineSince={channel.offlineSince}
           graceSeconds={state.reconnectGraceSeconds}
-          holdsSpot={!isHost}
+          holdsSpot={isMember}
           seatLabel={self?.seat ? `${self.seat} · ${self.displayName}` : null}
           onRetry={channel.reconnect}
         />

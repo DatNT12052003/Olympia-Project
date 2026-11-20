@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type {
@@ -19,6 +20,8 @@ import {
   type TestContext,
 } from '../../test/test-context';
 import { silentLogger } from '../../test/test-logger';
+import { OrganizationEntity } from '../organizations/organization.entity';
+import { OrganizationManagerEntity } from '../organizations/organization-manager.entity';
 import { RoomEntity } from '../rooms/room.entity';
 import {
   createRealtimeServer,
@@ -323,5 +326,104 @@ describe('Reaction (mục 13)', () => {
 
     expect(byPending).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
     expect(disabled).toMatchObject({ ok: false, error: { code: 'REACTIONS_DISABLED' } });
+  });
+});
+
+describe('Giám sát phòng của Super Admin/Manager (BR-ROLE-04)', () => {
+  async function managerOf(organizationId: string) {
+    const manager = await createUserAndLogin(ctx, { systemRole: 'manager' });
+    await ctx.dataSource
+      .getRepository(OrganizationManagerEntity)
+      .insert({ organizationId, userId: manager.user.id });
+    return manager;
+  }
+
+  async function newOrganization() {
+    return ctx.dataSource
+      .getRepository(OrganizationEntity)
+      .save({ name: `Trường ${randomUUID().slice(0, 8)}` });
+  }
+
+  it('Super Admin vào giám sát: nhận bản như khán giả, không hiện trong phòng, không gửi reaction', async () => {
+    const { room, host } = await createOpenRoom(ctx, { room: { reactionsEnabled: true } });
+    const admin = await createUserAndLogin(ctx, { systemRole: 'super_admin' });
+    const hostSocket = await connect(host.accessToken);
+    const before = await subscribed(hostSocket, room.id);
+
+    const adminSocket = await connect(admin.accessToken);
+    const result = await subscribe(adminSocket, room.id);
+
+    expect(result).toMatchObject({ ok: true, data: { audience: 'member', monitor: true } });
+    // Không ghi trạng thái kết nối nên Host không thấy ai mới vào.
+    const presence = await ctx.presence.get(room.id);
+    expect(presence.has(`u:${admin.user.id}`)).toBe(false);
+    expect(before.spectators.count).toBe(0);
+    expect(await react(adminSocket, room.id, '👍')).toMatchObject({
+      ok: false,
+      error: { code: 'FORBIDDEN' },
+    });
+  });
+
+  it('người giám sát nhận thông báo khi phòng bị đóng', async () => {
+    const { room, hostAuth } = await createOpenRoom(ctx);
+    const admin = await createUserAndLogin(ctx, { systemRole: 'super_admin' });
+    const adminSocket = await connect(admin.accessToken);
+    await subscribed(adminSocket, room.id);
+    const removed = removedReason(adminSocket);
+
+    await request(ctx.app).post(`/api/rooms/${room.id}/close`).set('Authorization', hostAuth);
+
+    expect(await removed).toBe('closed');
+  });
+
+  it('Manager chỉ giám sát được phòng của Host thuộc tổ chức mình quản lý', async () => {
+    const org = await newOrganization();
+    const otherOrg = await newOrganization();
+    const manager = await managerOf(org.id);
+    const own = await createOpenRoom(ctx, { host: { organizationId: org.id } });
+    const foreign = await createOpenRoom(ctx, { host: { organizationId: otherOrg.id } });
+    const noOrg = await createOpenRoom(ctx);
+    const managerSocket = await connect(manager.accessToken);
+
+    expect(await subscribe(managerSocket, own.room.id)).toMatchObject({
+      ok: true,
+      data: { monitor: true },
+    });
+    expect(await subscribe(managerSocket, foreign.room.id)).toMatchObject({
+      ok: false,
+      error: { code: 'NOT_IN_ROOM' },
+    });
+    expect(await subscribe(managerSocket, noOrg.room.id)).toMatchObject({
+      ok: false,
+      error: { code: 'NOT_IN_ROOM' },
+    });
+  });
+
+  it('Manager không giám sát được phòng của Manager/Super Admin khác dù cùng tổ chức', async () => {
+    const org = await newOrganization();
+    const manager = await managerOf(org.id);
+    const staffRoom = await createOpenRoom(ctx, {
+      host: { organizationId: org.id, systemRole: 'manager' },
+    });
+
+    const result = await subscribe(await connect(manager.accessToken), staffRoom.room.id);
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'NOT_IN_ROOM' } });
+  });
+
+  it('nhân viên đã vào phòng làm khán giả giữ vai trò khán giả, không chuyển sang giám sát', async () => {
+    const { room } = await createOpenRoom(ctx, { room: { allowSpectators: true } });
+    const admin = await createUserAndLogin(ctx, { systemRole: 'super_admin' });
+    await request(ctx.app)
+      .post(`/api/rooms/${room.id}/join`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .set('x-olympia-csrf', '1')
+      .send({ role: 'spectator', displayName: 'Admin xem' })
+      .expect(201);
+
+    const state = await subscribed(await connect(admin.accessToken), room.id);
+
+    expect(state).not.toHaveProperty('monitor');
+    expect(state.spectators.count).toBe(1);
   });
 });

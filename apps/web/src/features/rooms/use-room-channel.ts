@@ -25,6 +25,8 @@ export interface FloatingReaction extends RoomReaction {
 
 export interface RoomChannel {
   state: RoomState | null;
+  /** Super Admin/Manager đang giám sát phòng (BR-ROLE-04): xem như khán giả, không tương tác. */
+  monitor: boolean;
   connection: ChannelConnection;
   /** Thời điểm (ms, đồng hồ máy) mất kết nối tới server; `null` khi đang kết nối. */
   offlineSince: number | null;
@@ -65,6 +67,7 @@ const offlineAck = {
  */
 export function useRoomChannel(roomId: string): RoomChannel {
   const [state, setState] = useState<RoomState | null>(null);
+  const [monitor, setMonitor] = useState(false);
   const [connection, setConnection] = useState<ChannelConnection>('connecting');
   const [offlineSince, setOfflineSince] = useState<number | null>(null);
   const [error, setError] = useState<RoomChannel['error']>(null);
@@ -123,7 +126,9 @@ export function useRoomChannel(roomId: string): RoomChannel {
           setError(null);
           setRemoved(null);
           lastStatus = null;
-          applyState(result.data);
+          const { monitor: monitoring = false, ...next } = result.data;
+          setMonitor(monitoring);
+          applyState(next);
         } else {
           setError(result.error);
         }
@@ -318,6 +323,7 @@ export function useRoomChannel(roomId: string): RoomChannel {
 
   return {
     state,
+    monitor,
     connection,
     offlineSince,
     error,

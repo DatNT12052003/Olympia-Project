@@ -49,7 +49,8 @@ function LobbyHeader({
   );
 }
 
-function PlayersList({ state, meId }: { state: RoomState; meId: string }) {
+/** Danh sách ghế người chơi trong sảnh chờ; `meId` đánh dấu chính mình. */
+export function PlayersList({ state, meId }: { state: RoomState; meId?: string }) {
   return (
     <ul className="flex flex-col gap-2.5 text-[15px]">
       {Array.from({ length: state.room.maxPlayers }, (_, i) => i + 1).map((seat) => {

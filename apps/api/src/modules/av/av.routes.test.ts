@@ -4,6 +4,7 @@ import request from 'supertest';
 import {
   createOpenRoom,
   createTestContext,
+  createUserAndLogin,
   joinAsGuest,
   type TestContext,
 } from '../../test/test-context';
@@ -72,6 +73,19 @@ describe('Token video POST /api/rooms/:roomId/av/token', () => {
     const other = await createOpenRoom(ctx);
     expect((await tokenFor(room.id, other.host.accessToken)).status).toBe(403);
     expect((await request(ctx.app).post(`/api/rooms/${room.id}/av/token`)).status).toBe(401);
+  });
+
+  it('Super Admin giám sát chỉ xem/nghe, không phát (BR-ROLE-04)', async () => {
+    const { room } = await roomWithMembers();
+    const admin = await createUserAndLogin(ctx, { systemRole: 'super_admin' });
+
+    const res = await tokenFor(room.id, admin.accessToken);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ identity: `u:${admin.user.id}`, canPublish: false });
+    const issued = ctx.fakeAv.tokens.find((t) => t.identity === `u:${admin.user.id}`);
+    expect(issued && JSON.parse(issued.metadata)).toEqual({ role: 'monitor', participantId: null });
+    expect(issued?.sources).toBeNull();
   });
 
   it('máy chủ video lỗi: trả AV_UNAVAILABLE, không ảnh hưởng phòng (BR-AV-02)', async () => {
