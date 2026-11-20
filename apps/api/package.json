@@ -10,7 +10,10 @@
     "test": "jest",
     "db:migrate": "tsx --conditions=development --env-file-if-exists=.env src/infrastructure/database/run-migrations.ts up",
     "db:migrate:revert": "tsx --conditions=development --env-file-if-exists=.env src/infrastructure/database/run-migrations.ts down",
-    "user:grant-super-admin": "tsx --conditions=development --env-file-if-exists=.env src/scripts/grant-super-admin.ts"
+    "user:grant-super-admin": "tsx --conditions=development --env-file-if-exists=.env src/scripts/grant-super-admin.ts",
+    "e2e:server": "tsx --conditions=development src/scripts/e2e-server.ts",
+    "load:test": "tsx --conditions=development src/scripts/load/load-test.ts",
+    "load:recovery": "tsx --conditions=development --env-file-if-exists=.env src/scripts/load/recovery-test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1158.0",

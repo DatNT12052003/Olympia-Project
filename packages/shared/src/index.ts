@@ -12,3 +12,4 @@ export * from './scripts.js';
 export * from './results.js';
 export * from './settings.js';
 export * from './reports.js';
+export * from './monitoring.js';

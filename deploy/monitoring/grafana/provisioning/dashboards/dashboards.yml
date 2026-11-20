@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: olympia
+    folder: Olympia
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

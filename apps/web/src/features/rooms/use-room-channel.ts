@@ -52,6 +52,9 @@ export interface RoomChannel {
   sendReaction: (emoji: string) => Promise<string | null>;
 }
 
+/** URL API cho Socket.IO khi khác origin với web (biến build `VITE_SOCKET_URL`). */
+const SOCKET_URL = (import.meta.env.VITE_SOCKET_URL as string | undefined) || undefined;
+
 const REACTION_LIFETIME_MS = 2_600;
 const ACTION_TIMEOUT_MS = 5_000;
 
@@ -109,14 +112,17 @@ export function useRoomChannel(roomId: string): RoomChannel {
       lastStatus = next.room.status;
     };
 
-    const socket: RoomSocket = io({
+    const options: Parameters<typeof io>[1] = {
       autoConnect: false,
       transports: ['websocket'],
       // Lấy token mới mỗi lần bắt tay (kể cả khi tự kết nối lại).
       auth: (callback) => {
         void tokens.get().then((token) => callback({ token: token ?? '' }));
       },
-    });
+    };
+    // Mặc định cùng origin (Vite proxy / Caddy). Khi web và API ở hai tên miền (Vercel + Render),
+    // REST đi qua rewrite của Vercel nhưng WebSocket phải kết nối thẳng tới API.
+    const socket: RoomSocket = SOCKET_URL ? io(SOCKET_URL, options) : io(options);
     socketRef.current = socket;
 
     const subscribe = () => {

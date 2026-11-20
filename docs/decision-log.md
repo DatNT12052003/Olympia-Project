@@ -69,7 +69,11 @@
 | DL-048 | 2026-11-19 | Nghiệp vụ  | Công bố đáp án sau trận: thiết lập kịch bản, Host bật/tắt từng trận       | Đã chấp nhận    |
 | DL-049 | 2026-11-19 | Nghiệp vụ  | Cấu hình hệ thống lưu DB, Super Admin sửa trên web, áp dụng ngay          | Đã chấp nhận    |
 | DL-050 | 2026-11-19 | Nghiệp vụ  | Báo cáo vi phạm: cảnh báo qua email, chặn phiên khách, phạm vi Manager    | Đã chấp nhận    |
-| DL-051 | 2026-11-20 | Nghiệp vụ  | Giám sát phòng: nhân viên vào ẩn danh, xem như khán giả, đóng phòng tại chỗ | Đề xuất         |
+| DL-051 | 2026-11-20 | Nghiệp vụ  | Giám sát phòng: nhân viên vào ẩn danh, xem như khán giả, đóng phòng tại chỗ | Đã chấp nhận    |
+| DL-052 | 2026-11-20 | Kiến trúc  | Kiểm thử tải và khôi phục bằng công cụ Node + `socket.io-client` thay cho k6 | Đề xuất         |
+| DL-053 | 2026-11-20 | Kiến trúc  | Giám sát tự host: Prometheus + Grafana + Loki, lỗi frontend gửi về API (không Sentry) | Đã chấp nhận    |
+| DL-054 | 2026-11-20 | Nghiệp vụ  | Âm thanh/hiệu ứng trận tổng hợp bằng Web Audio + CSS, người xem tự tắt được | Đã chấp nhận    |
+| DL-055 | 2026-11-20 | Kiến trúc  | Giới hạn chống lạm dụng bổ sung: REST chung theo IP, vào phòng, sự kiện realtime | Đã chấp nhận    |
 
 ---
 
@@ -337,10 +341,38 @@
 
 ### DL-051 – Chế độ giám sát phòng của Super Admin/Manager
 
-- **Bối cảnh:** BR-ROLE-04, 15.2 ("vào giám sát"); ma trận 2.2: giám sát xem video/nghe âm thanh, không gửi reaction. Canvas thiết kế không có màn riêng.
+- **Bối cảnh:** BR-ROLE-04, 15.2 ("vào giám sát"); ma trận 2.2: giám sát xem video/nghe âm thanh, không gửi reaction. Canvas thiết kế không có màn riêng. Product Owner chọn ngày 2026-11-20.
 - **Quyết định:** Super Admin giám sát mọi phòng; Manager giám sát phòng của Host là thành viên thuộc tổ chức mình quản lý (cùng phạm vi `/api/admin/rooms`). Vào bằng nút "Vào giám sát" ở `/quan-tri/phong`, mở `/phong/:roomId`; không cần mã phòng/mật khẩu và không tạo lượt tham gia. Nhân viên đã vào phòng làm Player/Spectator thì giữ vai trò đó. Người giám sát nhận bản trạng thái phòng và trận như khán giả (không thấy đáp án trước khi công bố, BR-RT-01); token video chỉ xem/nghe; không gửi reaction, không trả lời/bấm chuông/điều khiển. Người giám sát **không hiện** trong danh sách phòng hay số khán giả, không ghi trạng thái kết nối và không tính vào giới hạn khán giả. Thanh "Chế độ giám sát" có nút đóng phòng (cùng API đóng phòng vi phạm, ghi nhật ký quản trị).
-- **Hệ quả:** Host và người chơi không biết đang bị giám sát; nếu cần minh bạch có thể thêm dòng "Quản trị viên đang giám sát" cho Host sau. Việc vào giám sát chưa ghi nhật ký quản trị.
+- **Hệ quả:** Host và người chơi không biết đang bị giám sát. Mỗi lần vào giám sát ghi nhật ký quản trị `room.monitor` (người, phòng, Host); kết nối lại cùng phòng trong 30 phút không ghi thêm.
 - **Liên quan:** BR-ROLE-04, 2.2, 15.1, 15.2, DL-005, DL-026.
+
+### DL-052 – Công cụ kiểm thử tải và khôi phục
+
+- **Bối cảnh:** BR-NFR-01, DL-009 (≤ 300 ms đồng bộ p95, ≥ 200 phòng / 5.000 kết nối, khôi phục ≤ 30 giây). Tài liệu công nghệ đề xuất k6 hoặc Artillery; k6 không hỗ trợ giao thức Socket.IO (phải tự viết framing Engine.IO).
+- **Quyết định (đề xuất 2026-11-20):** Hai script Node trong `apps/api/src/scripts/load/` dùng chính `socket.io-client` của web: `load:test` (N phòng × Host + Player + khán giả, vòng Tăng tốc, đo độ trễ lệnh Host → mọi người nhận, ack trả lời, lỗi) và `load:recovery` (2 instance, tắt cứng instance giữ trận khi đồng hồ chạy, đo đồng bộ lại / đồng hồ / điều khiển và kiểm tra điểm). Kết quả JSON, mã thoát ≠ 0 khi không đạt.
+- **Hệ quả:** Đo đúng độ trễ người dùng thấy (cùng giao thức, cùng client). Một máy sinh tải chỉ tạo được vài nghìn kết nối; nghiệm thu 5.000 kết nối cần chạy từ 2–3 máy riêng (xem `docs/van-hanh.md`). Môi trường đích cần `API_RATE_LIMIT_PER_MINUTE=0` khi chạy từ ít IP.
+- **Liên quan:** Mục 16, DL-009, DL-013.
+
+### DL-053 – Giám sát vận hành tự host
+
+- **Bối cảnh:** P8 "Sentry, Prometheus/Grafana". Người dùng có học sinh chưa thành niên (BR-DATA-06); Sentry SaaS gửi dữ liệu lỗi ra nước ngoài. Product Owner chọn ngày 2026-11-20.
+- **Quyết định:** Không dùng Sentry. API xuất metrics Prometheus trên cổng nội bộ `METRICS_PORT` (phòng đang hoạt động, trận đang chạy, kết nối realtime, thời gian xử lý REST, event loop, bộ nhớ, lỗi frontend). Log JSON (Pino) của mọi container gom vào Loki qua Promtail. Grafana (dashboard dựng sẵn, chỉ mở trên `127.0.0.1`, truy cập qua SSH tunnel) và luật cảnh báo Prometheus. Lỗi giao diện bắt bằng `window.onerror`/`unhandledrejection`/route error, gửi `POST /api/client-errors` (không dữ liệu người dùng, bỏ query string; giới hạn 20/phút/IP).
+- **Hệ quả:** Không phụ thuộc bên thứ ba, dữ liệu ở lại VPS. Cần tự cấu hình kênh nhận cảnh báo (Grafana Contact points). Lỗi frontend không có source map đã giải mã (stack của bản build).
+- **Liên quan:** BR-DATA-06, DL-023.
+
+### DL-054 – Âm thanh và hiệu ứng trận
+
+- **Bối cảnh:** 11.4 (âm thanh đúng/sai, hiệu ứng chiến thắng, toàn màn hình); thiết lập kịch bản `soundEffects`. Product Owner chọn ngày 2026-11-20.
+- **Quyết định:** Âm thanh tổng hợp bằng Web Audio API (đúng, sai, chuông giành quyền, tích tắc 5 giây cuối, câu mới, chiến thắng), không dùng tệp âm thanh. Hiệu ứng bằng CSS: viền sáng xanh/cam khi kết quả của chính người chơi được công bố, pháo giấy khi trận kết thúc. Chỉ phát khi kịch bản bật `soundEffects` (đưa vào `MatchView`); người xem tự tắt trên máy mình (lưu trình duyệt). Nút toàn màn hình (Fullscreen API). Hiệu ứng chuyển động tắt khi người dùng bật "giảm chuyển động". Sự kiện suy ra từ chính các bản trạng thái server đã gửi nên không lộ thêm dữ liệu (BR-RT-01).
+- **Hệ quả:** Không vướng bản quyền, không tăng dung lượng tải. Âm thanh đơn giản; có thể thay bằng tệp âm thanh sau mà không đổi cơ chế.
+- **Liên quan:** 11.4, BR-RT-01.
+
+### DL-055 – Giới hạn chống lạm dụng bổ sung (review bảo mật P8)
+
+- **Bối cảnh:** Review bảo mật trước phát hành (mục 16 Security, `docs/nghiem-thu-p8.md`).
+- **Quyết định:** Giới hạn chung REST 600 request/phút/IP (`API_RATE_LIMIT_PER_MINUTE`, 0 = tắt); vào phòng 15 lần/phút/IP/phòng (chống lấp phòng bằng khách ảo); `room:subscribe` và `match:sync` 20 lần/10 giây/danh tính; gói tin Socket.IO tối đa 64 KB. Production bắt buộc `APP_URL`/`CORS_ORIGINS` https và `LIVEKIT_URL` wss.
+- **Hệ quả:** Lớp học dùng chung một IP NAT: 600 request/phút đủ cho một lớp (REST chỉ dùng cho thao tác quản lý, trận đấu đi qua Socket.IO); điều chỉnh qua biến môi trường nếu cần.
+- **Liên quan:** BR-AUTH-03, BR-SPEC-02, DL-026.
 
 ---
 

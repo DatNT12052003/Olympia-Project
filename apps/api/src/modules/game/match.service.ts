@@ -39,27 +39,46 @@ export function createMatchService(deps: MatchServiceDeps) {
         actor,
         roomId,
         options,
-        async (manager, room, players) => {
-          const script = room.scriptId
-            ? await deps.scripts.loadForMatch(actor.userId, room.scriptId)
-            : null;
-          if (!script) {
-            throw new ConflictError(
-              'Phòng chưa có kịch bản. Hãy chọn kịch bản trước khi bắt đầu.',
-              MatchErrorCode.ScriptMissing,
-            );
-          }
-
-          const rounds: ScriptSnapshot['rounds'] = [];
-          for (const [index, round] of script.rounds.entries()) {
-            const title = `Vòng ${index + 1} (${ROUND_TITLES[round.type]})`;
-            if (!round.source) {
+        // Đọc kịch bản và câu hỏi ngoài transaction của phòng (xem `beginMatch`). Lỗi được giữ
+        // lại và ném trong `work` để thứ tự kiểm tra như cũ: phòng, người chơi rồi mới kịch bản.
+        async (scriptId) => {
+          try {
+            const script = scriptId
+              ? await deps.scripts.loadForMatch(actor.userId, scriptId)
+              : null;
+            if (!script) {
               throw new ConflictError(
-                `${title} chưa chọn nguồn câu hỏi.`,
-                MatchErrorCode.ScriptInvalid,
+                'Phòng chưa có kịch bản. Hãy chọn kịch bản trước khi bắt đầu.',
+                MatchErrorCode.ScriptMissing,
               );
             }
-            const questions = await deps.sources.load(actor.userId, round.source, round.type);
+            const sources = [];
+            for (const [index, round] of script.rounds.entries()) {
+              const title = `Vòng ${index + 1} (${ROUND_TITLES[round.type]})`;
+              if (!round.source) {
+                throw new ConflictError(
+                  `${title} chưa chọn nguồn câu hỏi.`,
+                  MatchErrorCode.ScriptInvalid,
+                );
+              }
+              const questions = await deps.sources.load(actor.userId, round.source, round.type);
+              sources.push({ title, round, questions });
+            }
+            return { script, sources, error: null };
+          } catch (error) {
+            return {
+              script: null,
+              sources: [],
+              error: error instanceof Error ? error : new Error(String(error)),
+            };
+          }
+        },
+        async (manager, room, players, prepared) => {
+          if (prepared.error !== null) throw prepared.error;
+          const script = prepared.script;
+
+          const rounds: ScriptSnapshot['rounds'] = [];
+          for (const { title, round, questions } of prepared.sources) {
             const requirement = roundRequirement(round);
             const needed = requirement.fixed + requirement.perPlayer * players.length;
             if (questions.length < needed) {

@@ -1,7 +1,13 @@
-import { Link } from 'react-router';
+import { useEffect } from 'react';
+import { Link, useRouteError } from 'react-router';
+import { reportClientError } from '../lib/error-reporter';
 
 /** Hiển thị khi một route ném lỗi khi render hoặc tải dữ liệu. */
 export function RouteErrorPage() {
+  const error = useRouteError();
+  useEffect(() => {
+    if (import.meta.env.PROD) reportClientError(error, 'render');
+  }, [error]);
   return (
     <main className="mx-auto flex min-h-dvh max-w-lg flex-col items-center justify-center px-4 text-center">
       <h1 className="text-2xl font-bold text-slate-900">Đã có lỗi xảy ra</h1>

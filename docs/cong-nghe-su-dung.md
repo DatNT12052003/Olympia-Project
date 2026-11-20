@@ -85,7 +85,7 @@ PostgreSQL        Redis                 Object Storage (S3)
 | Form                  | React Hook Form + Zod             |  Đề xuất   | Dùng lại schema từ `packages/shared`.                               |
 | Realtime client       | `socket.io-client`                |  Đã chốt   | Theo lựa chọn Socket.IO ở backend.                                  |
 | Video client          | `livekit-client` + `@livekit/components-react` |  Đã chốt   | Theo lựa chọn LiveKit (mục 5).                     |
-| Hiệu ứng / âm thanh   | Framer Motion, Howler.js          |  Đề xuất   | Hiệu ứng điểm, công bố kết quả, âm thanh đúng/sai.                  |
+| Hiệu ứng / âm thanh   | Web Audio API + CSS (DL-054)      |  Đã chốt   | Âm thanh tổng hợp, không tệp; hiệu ứng nháy kết quả, pháo giấy.     |
 | Icon                  | Lucide                            |  Đề xuất   |                                                                     |
 
 ---
@@ -110,7 +110,7 @@ PostgreSQL        Redis                 Object Storage (S3)
 | DB cho integration  | Testcontainers (PostgreSQL, Redis) |  Đề xuất   | Test trên DB thật thay vì mock.                                         |
 | Component frontend  | React Testing Library + Vitest     |  Đã chốt   | Vitest tích hợp sẵn với Vite. Thay thế: Jest.              |
 | End-to-end          | Playwright                         |  Đã chốt   | Mô phỏng nhiều trình duyệt (Host + 2–4 Player + Spectator) trong một trận. |
-| Kiểm thử tải        | k6 (hoặc Artillery cho Socket.IO)  |  Đề xuất   | Nghiệm thu chỉ tiêu mục 16 (BR-NFR-01).                                 |
+| Kiểm thử tải        | Script Node + `socket.io-client` (DL-052) |  Đề xuất   | Nghiệm thu chỉ tiêu mục 16 (BR-NFR-01). k6 không nói được giao thức Socket.IO. |
 
 ---
 
@@ -120,11 +120,11 @@ PostgreSQL        Redis                 Object Storage (S3)
 | ------------------ | ------------------------------------------- | :--------: | ----------------------------------------------------------------------- |
 | Container          | Docker                                      |  Đã chốt   |                                                                         |
 | Môi trường dev     | Docker Compose: PostgreSQL, Redis, LiveKit, Mailpit (object storage: xem T8) |  Đã chốt   | Một lệnh dựng đủ dịch vụ phụ thuộc.                       |
-| Reverse proxy / TLS | Caddy (hoặc Nginx)                         |  Đề xuất   | TLS tự động, hỗ trợ WebSocket.                                          |
-| CI                 | GitHub Actions                              |  Đề xuất   | Lint, type-check, test, build image.                                    |
+| Reverse proxy / TLS | Caddy                                      |  Đã chốt   | TLS tự động, hỗ trợ WebSocket, phục vụ web tĩnh (`deploy/Caddyfile`).   |
+| CI                 | GitHub Actions                              |  Đã chốt   | Lint, type-check, test, build, E2E (5 trình duyệt) và E2E trận đầy đủ.  |
 | CDN                | CDN trước object storage                    |  Đề xuất   | Media câu hỏi (mục 16).                                                 |
-| Giám sát lỗi       | Sentry                                      |  Đề xuất   | Cả frontend và backend.                                                 |
-| Metrics            | Prometheus + Grafana                        |  Đề xuất   | Số phòng, số kết nối, độ trễ đồng bộ, độ sẵn sàng.                      |
+| Giám sát lỗi       | Tự host: log Pino → Loki, lỗi frontend gửi về API (DL-053) |  Đã chốt   | Không dùng Sentry SaaS (BR-DATA-06).                      |
+| Metrics            | Prometheus + Grafana (DL-053)               |  Đã chốt   | Số phòng, số kết nối, độ trễ REST, event loop, lỗi frontend.            |
 
 ---
 

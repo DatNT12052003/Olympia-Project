@@ -43,7 +43,7 @@ Nếu quy mô nhóm khác, cần ước lượng lại thời lượng ở mục
 | P5        | Ba vòng còn lại, chế độ tự động            | 3 tuần               | P4          |             | Đã xong |
 | P6        | Video call và voice chat                   | 2 tuần               | P3          | **M3** (cùng P5) | Đã code, chờ review/merge; chưa thử video trên staging/4G |
 | P7        | Kết quả, lịch sử, thống kê, quản trị       | 2 tuần               | P4          |             | Đã code (kể cả chế độ "vào giám sát" phòng, DL-051), E2E Playwright hiện có chạy xanh; chờ review/merge |
-| P8        | Hoàn thiện, kiểm thử tải, nghiệm thu, phát hành | 2 tuần          | P5, P6, P7  | **M4**      | Chưa làm |
+| P8        | Hoàn thiện, kiểm thử tải, nghiệm thu, phát hành | 2 tuần          | P5, P6, P7  | **M4**      | Đã code (review bảo mật, âm thanh/hiệu ứng, E2E trận đầy đủ, công cụ tải/khôi phục, bộ triển khai + giám sát); chờ staging: tải quy mô đầy đủ, video 4G, thiết bị thật, rà soát pháp lý – xem [nghiem-thu-p8.md](nghiem-thu-p8.md) |
 
 > **Theo dõi tiến độ:** cập nhật cột "Trạng thái" mỗi khi một giai đoạn xong (merge vào `develop`) hoặc có phần chưa đạt tiêu chí. Cập nhật lần cuối: 2026-11-20.
 

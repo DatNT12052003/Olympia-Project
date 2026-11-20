@@ -18,6 +18,8 @@ const envSchema = z
       ),
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
     REDIS_URL: z.url({ protocol: /^rediss?$/ }),
+    /** Số kết nối PostgreSQL tối đa mỗi instance API. */
+    DATABASE_POOL_SIZE: z.coerce.number().int().min(2).max(200).default(20),
 
     /** Số proxy tin cậy phía trước (để lấy đúng IP client cho rate limit). 0 = không có proxy. */
     TRUST_PROXY: z.coerce.number().int().min(0).default(0),
@@ -35,6 +37,12 @@ const envSchema = z
       .enum(['true', 'false'])
       .optional()
       .transform((value) => (value === undefined ? undefined : value === 'true')),
+
+    /** Cổng `/metrics` cho Prometheus, chỉ mở trong mạng nội bộ. 0 = tắt. */
+    METRICS_PORT: z.coerce.number().int().min(0).max(65535).default(0),
+
+    /** Giới hạn chung số request REST mỗi phút cho một IP (mục 16, rate limit). 0 = tắt. */
+    API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(0).default(600),
 
     /** Giới hạn đăng nhập sai liên tiếp (BR-AUTH-03). */
     LOGIN_MAX_FAILURES: z.coerce.number().int().min(1).default(5),
@@ -85,6 +93,20 @@ const envSchema = z
   .refine((env) => env.NODE_ENV !== 'production' || env.LIVEKIT_API_SECRET.length >= 32, {
     path: ['LIVEKIT_API_SECRET'],
     message: 'Cần khóa LiveKit thật (tối thiểu 32 ký tự) ở production.',
+  })
+  .refine(
+    (env) =>
+      env.NODE_ENV !== 'production' ||
+      (env.APP_URL.startsWith('https://') &&
+        env.CORS_ORIGINS.every((origin) => origin.startsWith('https://'))),
+    {
+      path: ['CORS_ORIGINS'],
+      message: 'Production cần APP_URL và CORS_ORIGINS dùng https://.',
+    },
+  )
+  .refine((env) => env.NODE_ENV !== 'production' || env.LIVEKIT_URL.startsWith('wss://'), {
+    path: ['LIVEKIT_URL'],
+    message: 'Production cần LIVEKIT_URL dạng wss:// (trình duyệt chặn ws:// trên trang https).',
   })
   .transform((env) => ({
     ...env,

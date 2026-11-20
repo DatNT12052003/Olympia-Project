@@ -390,6 +390,8 @@ export interface MatchView {
   awaitingHost: boolean;
   /** Người thắng câu hỏi phụ. */
   tiebreakWinner: number | null;
+  /** Hiệu ứng âm thanh theo thiết lập kịch bản (11.4); người xem vẫn tự tắt được trên máy mình. */
+  soundEffects: boolean;
   players: MatchPlayerView[];
   timer: MatchTimerView | null;
   round: RoundView;

@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:full": "playwright test -c playwright.full.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",

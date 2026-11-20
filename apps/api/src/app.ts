@@ -48,10 +48,13 @@ import type { AdminUsersService } from './modules/users/admin-users.service';
 import { createMeRouter } from './modules/users/users.routes';
 import type { UsersService } from './modules/users/users.service';
 import { createAuthenticate } from './shared/auth/http-auth';
+import { createApiRateLimit } from './shared/http/api-rate-limit';
 import { createErrorHandler, notFoundHandler } from './shared/http/error-handler';
+import type { Metrics } from './infrastructure/metrics/metrics';
+import { createClientErrorsRouter } from './modules/monitoring/client-errors.routes';
 
 export interface AppDependencies {
-  env: Pick<Env, 'CORS_ORIGINS' | 'TRUST_PROXY' | 'COOKIE_SECURE'>;
+  env: Pick<Env, 'CORS_ORIGINS' | 'TRUST_PROXY' | 'COOKIE_SECURE' | 'API_RATE_LIMIT_PER_MINUTE'>;
   logger: Logger;
   healthService: HealthService;
   authService: AuthService;
@@ -69,6 +72,8 @@ export interface AppDependencies {
   adminService: AdminService;
   avService: AvService;
   limiters: LimiterFactory;
+  /** Metrics Prometheus (production); bỏ trống trong test. */
+  metrics?: Metrics;
 }
 
 export function createApp({
@@ -90,6 +95,7 @@ export function createApp({
   adminService,
   avService,
   limiters,
+  metrics,
 }: AppDependencies): Express {
   const app = express();
 
@@ -100,6 +106,7 @@ export function createApp({
   app.use(cors({ origin: env.CORS_ORIGINS, credentials: true }));
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
+  if (metrics) app.use(metrics.httpMiddleware());
   app.use(
     pinoHttp({
       logger,
@@ -109,6 +116,7 @@ export function createApp({
 
   const api = express.Router();
   api.use('/health', createHealthRouter(healthService));
+  api.use(createApiRateLimit(limiters, env.API_RATE_LIMIT_PER_MINUTE));
   // Gắn principal nếu có access token; từng router tự quyết định yêu cầu quyền gì.
   api.use(createAuthenticate((token) => authService.resolveAccessToken(token)));
   api.use('/auth', createAuthRouter(authService, { secure: env.COOKIE_SECURE }));
@@ -119,6 +127,7 @@ export function createApp({
   api.use('/admin/rooms', createAdminRoomsRouter(adminService));
   api.use('/admin/audit-logs', createAuditLogsRouter(adminService));
   api.use('/settings', createPublicSettingsRouter(settingsService));
+  api.use('/client-errors', createClientErrorsRouter({ logger, limiters, metrics }));
   api.use('/matches', createResultsRouter(resultsService));
   api.use('/reports', createReportsRouter(reportsService));
   api.use('/moderation/reports', createReportModerationRouter(reportsService));

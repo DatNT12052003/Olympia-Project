@@ -21,7 +21,7 @@ import {
 } from '../../shared/errors/app-error';
 import type { MatchPublisher, MatchRuntime } from '../game/match-runtime';
 import type { LobbyService, RoomViewer } from '../rooms/lobby.service';
-import type { PresenceStore } from '../rooms/presence-store';
+import { presenceKey, type PresenceStore } from '../rooms/presence-store';
 import type { RealtimeServer, RealtimeSocket } from './realtime-server';
 import { roomChannels } from './room-realtime';
 
@@ -69,6 +69,8 @@ export function createMatchRealtime({
 }: MatchRealtimeDeps) {
   // Chống spam: tối đa 10 hành động trận / giây / người.
   const actionLimiter = limiters({ keyPrefix: 'match-action', points: 10, durationSeconds: 1 });
+  // Đồng bộ trạng thái chỉ cần khi (kết nối lại) hoặc vào trận; chặn gửi dồn dập.
+  const syncLimiter = limiters({ keyPrefix: 'match-sync', points: 20, durationSeconds: 10 });
 
   const publisher: MatchPublisher = {
     publish(views) {
@@ -137,6 +139,8 @@ export function createMatchRealtime({
       if (typeof ack !== 'function') return;
       try {
         const { roomId } = syncPayload.parse(payload);
+        const blocked = await syncLimiter.consume(presenceKey(socket.data.principal));
+        if (blocked !== null) throw new TooManyRequestsError(blocked, 'Bạn thao tác quá nhanh.');
         const viewer = await requireViewer(roomId, socket);
         const role =
           viewer.role === 'host' ? 'host' : viewer.role === 'player' ? 'player' : 'spectator';

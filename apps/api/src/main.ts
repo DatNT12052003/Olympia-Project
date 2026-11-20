@@ -42,6 +42,7 @@ import {
 import { createAdminUsersService } from './modules/users/admin-users.service';
 import { createUsersService } from './modules/users/users.service';
 import { createLogger } from './shared/logging/logger';
+import { createMetrics } from './infrastructure/metrics/metrics';
 import { createSmtpMailer } from './shared/mail/mailer';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -49,8 +50,9 @@ const SHUTDOWN_TIMEOUT_MS = 10_000;
 async function main(): Promise<void> {
   const env = loadEnv();
   const logger = createLogger(env);
+  const metrics = createMetrics();
 
-  const dataSource = createDataSource(env.DATABASE_URL);
+  const dataSource = createDataSource(env.DATABASE_URL, env.DATABASE_POOL_SIZE);
   await dataSource.initialize();
 
   const redis = createRedisClient(env.REDIS_URL);
@@ -222,6 +224,7 @@ async function main(): Promise<void> {
     adminService,
     avService: av.avService,
     limiters,
+    metrics,
   });
   const httpServer = createServer(app);
   const realtime = createRealtimeServer(httpServer, {
@@ -268,6 +271,27 @@ async function main(): Promise<void> {
   maintenance.start();
   dataRetention.start();
 
+  metrics.attach({
+    connections: () => realtime.engine.clientsCount,
+    activeRooms: async () =>
+      Number(
+        (
+          await dataSource.query<[{ n: number }]>(
+            "SELECT count(*)::int AS n FROM rooms WHERE status IN ('open', 'in_match')",
+          )
+        )[0].n,
+      ),
+    runningMatches: async () =>
+      Number(
+        (
+          await dataSource.query<[{ n: number }]>(
+            "SELECT count(*)::int AS n FROM matches WHERE status <> 'finished'",
+          )
+        )[0].n,
+      ),
+  });
+  const metricsServer = metrics.listen(env.METRICS_PORT);
+
   httpServer.listen(env.PORT, () => {
     logger.info(`API đang chạy tại http://localhost:${env.PORT}`);
   });
@@ -279,6 +303,7 @@ async function main(): Promise<void> {
     logger.info({ signal }, 'Đang tắt server');
     maintenance.stop();
     dataRetention.stop();
+    metricsServer?.close();
     settingsService.stop();
     void game.runtime.stop();
 

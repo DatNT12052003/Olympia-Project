@@ -254,7 +254,13 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
   });
 
   const app = createApp({
-    env: { CORS_ORIGINS: ['http://localhost:5173'], TRUST_PROXY: 0, COOKIE_SECURE: false },
+    env: {
+      CORS_ORIGINS: ['http://localhost:5173'],
+      TRUST_PROXY: 0,
+      COOKIE_SECURE: false,
+      // Test gửi nhiều request từ cùng địa chỉ; giới hạn chung kiểm tra riêng ở api-rate-limit.test.
+      API_RATE_LIMIT_PER_MINUTE: 0,
+    },
     logger: silentLogger,
     healthService: createHealthService(options.healthChecks ?? {}, 50),
     authService,

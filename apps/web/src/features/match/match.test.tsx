@@ -98,6 +98,7 @@ function matchView(overrides: Partial<MatchView> = {}): MatchView {
     nextStep: 'finish',
     awaitingHost: false,
     tiebreakWinner: null,
+    soundEffects: true,
     players: [
       {
         seat: 1,

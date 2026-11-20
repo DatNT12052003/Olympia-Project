@@ -71,9 +71,31 @@ describe('loadEnv', () => {
       NODE_ENV: 'production',
       S3_SECRET_ACCESS_KEY: 'real-key',
       LIVEKIT_API_SECRET: 'livekit-production-secret-0123456789',
+      LIVEKIT_URL: 'wss://av.example.com',
+      APP_URL: 'https://olympia.example.com',
+      CORS_ORIGINS: 'https://olympia.example.com',
     };
     expect(loadEnv(validEnv).COOKIE_SECURE).toBe(false);
     expect(loadEnv(production).COOKIE_SECURE).toBe(true);
     expect(loadEnv({ ...validEnv, COOKIE_SECURE: 'true' }).COOKIE_SECURE).toBe(true);
+  });
+
+  it('production bắt buộc https cho web/CORS và wss cho LiveKit', () => {
+    const production = {
+      ...validEnv,
+      NODE_ENV: 'production',
+      S3_SECRET_ACCESS_KEY: 'real-key',
+      LIVEKIT_API_SECRET: 'livekit-production-secret-0123456789',
+      LIVEKIT_URL: 'wss://av.example.com',
+      APP_URL: 'https://olympia.example.com',
+      CORS_ORIGINS: 'https://olympia.example.com',
+    };
+    expect(() => loadEnv(production)).not.toThrow();
+    expect(() => loadEnv({ ...production, CORS_ORIGINS: 'http://olympia.example.com' })).toThrow(
+      /CORS_ORIGINS/,
+    );
+    expect(() => loadEnv({ ...production, LIVEKIT_URL: 'ws://av.example.com' })).toThrow(
+      /LIVEKIT_URL/,
+    );
   });
 });
