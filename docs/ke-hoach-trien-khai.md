@@ -190,7 +190,7 @@ Mỗi hạng mục trong một giai đoạn chỉ được coi là xong khi: có
 | Trước P4         | DL-003, DL-004, DL-013                         |
 | Trước P6         | DL-007, DL-019                                 |
 | Trước P7         | DL-008 (đã chốt 2026-11-19)                    |
-| Trước P8         | DL-009, DL-023, DL-024                         |
+| Trước P8         | DL-009, DL-023, DL-024 (đã chốt 2026-11-19)    |
 
 ---
 

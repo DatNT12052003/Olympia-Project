@@ -24,10 +24,10 @@
 | DL-003 | 2026-11-18 | Nghiệp vụ  | Luật vòng thi dạng preset, không bám một phiên bản luật chính thức         | Đã chấp nhận         |
 | DL-004 | 2026-11-18 | Nghiệp vụ  | Hỗ trợ cả nhập trên thiết bị và trả lời bằng lời; mặc định nhập trên thiết bị | Đã chấp nhận      |
 | DL-005 | 2026-11-18 | Nghiệp vụ  | Phạm vi Manager theo Tổ chức                                               | Đã chấp nhận    |
-| DL-006 | 2026-11-18 | Nghiệp vụ  | Bắt buộc kiểm duyệt bộ câu hỏi public trước khi hiển thị                   | Đề xuất         |
+| DL-006 | 2026-11-18 | Nghiệp vụ  | Bắt buộc kiểm duyệt bộ câu hỏi public trước khi hiển thị                   | Đã chấp nhận    |
 | DL-007 | 2026-11-18 | Nghiệp vụ  | Spectator xem video Host; giới hạn số Spectator mỗi phòng                  | Đã chấp nhận    |
 | DL-008 | 2026-11-18 | Nghiệp vụ  | Không ghi hình ở phiên bản đầu; có chính sách dữ liệu cá nhân              | Đã chấp nhận    |
-| DL-009 | 2026-11-18 | Nghiệp vụ  | Chỉ tiêu phi chức năng phiên bản đầu, nghiệm thu bằng kiểm thử tải         | Đề xuất         |
+| DL-009 | 2026-11-18 | Nghiệp vụ  | Chỉ tiêu phi chức năng phiên bản đầu, nghiệm thu bằng kiểm thử tải         | Đã chấp nhận    |
 | DL-010 | 2026-11-18 | Kiến trúc  | Modular monolith với 4 module tách biệt                                    | Đã chấp nhận    |
 | DL-011 | 2026-11-18 | Kiến trúc  | Server là nguồn sự thật cho trạng thái, thời gian và điểm                  | Đã chấp nhận    |
 | DL-012 | 2026-11-18 | Kiến trúc  | Luật vòng thi là plugin của Game Engine                                    | Đã chấp nhận    |
@@ -41,8 +41,8 @@
 | DL-020 | 2026-11-18 | Công nghệ  | Validation dùng Zod, chia sẻ qua `packages/shared`                         | Đã chấp nhận    |
 | DL-021 | 2026-11-18 | Công nghệ  | Xác thực JWT ngắn hạn + refresh token xoay vòng trong cookie HttpOnly      | Đã chấp nhận    |
 | DL-022 | 2026-11-18 | Công nghệ  | Test runner frontend dùng Vitest                                           | Đã chấp nhận    |
-| DL-023 | –          | Hạ tầng    | Nơi triển khai production                                                  | Chưa quyết định |
-| DL-024 | –          | Hạ tầng    | Object storage và CDN production                                           | Chưa quyết định |
+| DL-023 | 2026-11-19 | Hạ tầng    | Production: VPS + Docker Compose, reverse proxy HTTPS                      | Đã chấp nhận    |
+| DL-024 | 2026-11-19 | Hạ tầng    | Media production: object storage S3-compatible thuê ngoài + CDN           | Đã chấp nhận    |
 | DL-025 | 2026-11-18 | Hạ tầng    | Object storage S3-compatible cho môi trường dev: SeaweedFS                 | Đã chấp nhận    |
 | DL-026 | 2026-11-18 | Kiến trúc  | Sảnh chờ: thao tác qua REST, trạng thái phòng đẩy xuống qua Socket.IO      | Đã chấp nhận    |
 | DL-027 | 2026-11-18 | Nghiệp vụ  | Link mời là mã phòng; "tạo link mới" = đổi mã phòng                        | Đã chấp nhận    |
@@ -115,7 +115,7 @@
 ### DL-006 – Kiểm duyệt bắt buộc bộ câu hỏi public
 
 - **Bối cảnh:** Đặc tả Q6. Người dùng có học sinh; nội dung public cần được kiểm soát.
-- **Quyết định:** Bộ public phải được Manager/Super Admin duyệt trước khi hiển thị. Sửa bộ đã duyệt tạo phiên bản mới chờ duyệt; phiên bản cũ vẫn hiển thị.
+- **Quyết định (chốt 2026-11-19):** Bộ public phải được Manager/Super Admin duyệt trước khi hiển thị. Sửa bộ đã duyệt tạo phiên bản mới chờ duyệt; phiên bản cũ vẫn hiển thị.
 - **Hệ quả:** Cần versioning cho bộ câu hỏi public và hàng đợi kiểm duyệt. Có độ trễ trước khi bộ mới được dùng.
 - **Liên quan:** 5.4, BR-QB-09.
 
@@ -138,7 +138,7 @@
 ### DL-009 – Chỉ tiêu phi chức năng phiên bản đầu
 
 - **Bối cảnh:** Đặc tả Q9.
-- **Quyết định:** Giữ chỉ tiêu mục 16 (≤ 300 ms đồng bộ, ≥ 200 phòng, ≥ 5.000 kết nối) và bổ sung: video ≤ 500 ms, ≥ 100 phòng có video, khôi phục trận ≤ 30 giây, sẵn sàng ≥ 99,5%/tháng. Nghiệm thu bằng kiểm thử tải.
+- **Quyết định (chốt 2026-11-19):** Giữ chỉ tiêu mục 16 (≤ 300 ms đồng bộ, ≥ 200 phòng, ≥ 5.000 kết nối) và bổ sung: video ≤ 500 ms, ≥ 100 phòng có video, khôi phục trận ≤ 30 giây, sẵn sàng ≥ 99,5%/tháng. Nghiệm thu bằng kiểm thử tải.
 - **Hệ quả:** Cần môi trường và kịch bản kiểm thử tải trước phát hành; quy mô hạ tầng phụ thuộc DL-023.
 - **Liên quan:** Mục 16, BR-NFR-01.
 
@@ -349,8 +349,8 @@ Chi tiết lý do và phương án thay thế: [cong-nghe-su-dung.md](cong-nghe-
 | DL-020 | Zod, chia sẻ qua `packages/shared`                                                          | class-validator             | Điểm T3.                                        |
 | DL-021 | JWT ngắn hạn + refresh token xoay vòng trong cookie HttpOnly                                | Session lưu Redis           | Điểm T4. Chốt ngày 2026-11-18 trước P1.         |
 | DL-022 | Vitest cho frontend                                                                         | Jest                        | Điểm T5.                                        |
-| DL-023 | Nơi triển khai production                                                                   | VPS tự quản / cloud / Kubernetes | Điểm T6. Cần thông tin ngân sách và quy mô. |
-| DL-024 | Object storage và CDN production                                                            | –                           | Điểm T7. Phụ thuộc DL-023.                      |
+| DL-023 | Nơi triển khai production: **VPS + Docker Compose** (chốt 2026-11-19): api, web tĩnh, PostgreSQL, Redis, LiveKit (kèm TURN) trên 1–2 VPS gần người dùng (VN/Singapore), Caddy/Nginx cấp HTTPS; sao lưu PostgreSQL định kỳ ra object storage. | Cloud có dịch vụ quản lý, Kubernetes (chưa cần ở quy mô bản đầu) | Mở rộng ngang về sau: thêm instance api sau load balancer (Socket.IO Redis adapter, DL-013 đã hỗ trợ). |
+| DL-024 | Object storage và CDN production: **dịch vụ S3-compatible thuê ngoài** (ưu tiên Cloudflare R2 – không tính phí tải xuống; hoặc S3/Spaces) kèm CDN, chốt 2026-11-19. Chỉ đổi biến môi trường `S3_*`. | Tự host SeaweedFS | Cần cấu hình CORS cho upload presigned từ domain web. |
 | DL-025 | Object storage S3-compatible cho dev: **SeaweedFS** (chốt ngày 2026-11-18 khi làm P2). MinIO không còn phát hành Docker image cộng đồng. | Garage, LocalStack | Production chờ DL-024. |
 
 ---
