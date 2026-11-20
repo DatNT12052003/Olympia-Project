@@ -6,6 +6,7 @@
     "dev": "tsx watch --conditions=development --env-file-if-exists=.env src/main.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node --env-file-if-exists=.env dist/main.js",
+    "start:migrate": "node dist/infrastructure/database/run-migrations.js up && node dist/main.js",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "db:migrate": "tsx --conditions=development --env-file-if-exists=.env src/infrastructure/database/run-migrations.ts up",
