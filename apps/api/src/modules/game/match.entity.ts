@@ -14,6 +14,10 @@ export class MatchEntity {
   @Column({ name: 'host_user_id', type: 'uuid' })
   hostUserId!: string;
 
+  /** Tên phòng lúc thi (lịch sử, mục 14). */
+  @Column({ name: 'room_name', type: 'varchar', length: 100, default: '' })
+  roomName!: string;
+
   @Column({ name: 'script_id', type: 'uuid', nullable: true })
   scriptId!: string | null;
 
@@ -42,4 +46,18 @@ export class MatchEntity {
 
   @Column({ name: 'ended_at', type: 'timestamptz', nullable: true })
   endedAt!: Date | null;
+
+  /** Player/khán giả xem được đáp án và giải thích ở trang tổng kết (9.4, DL-048). */
+  @Column({ name: 'answers_public', type: 'boolean', default: false })
+  answersPublic!: boolean;
+
+  /** Super Admin hủy kết quả (BR-HIST-01). */
+  @Column({ name: 'voided_at', type: 'timestamptz', nullable: true })
+  voidedAt!: Date | null;
+
+  @Column({ name: 'voided_by', type: 'uuid', nullable: true })
+  voidedBy!: string | null;
+
+  @Column({ name: 'void_reason', type: 'varchar', length: 500, nullable: true })
+  voidReason!: string | null;
 }

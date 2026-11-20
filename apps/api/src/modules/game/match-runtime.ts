@@ -18,6 +18,8 @@ import { MatchPlayerEntity } from './match-player.entity';
 import {
   MatchAnswerEntity,
   MatchInterventionEntity,
+  MatchQuestionEntity,
+  MatchQuestionOutcomeEntity,
   MatchScoreEventEntity,
 } from './match-records.entity';
 import { MatchBusyError, type MatchStore } from './match-store';
@@ -54,7 +56,8 @@ export interface MatchRuntimeDeps {
   rooms: MatchRoomHooks;
   logger: Logger;
   /** Host mất kết nối quá thời gian này thì trận kết thúc bất thường (4.5). */
-  hostReconnectMs: number;
+  /** Host mất kết nối quá thời gian này thì trận kết thúc bất thường (đọc theo cấu hình hệ thống). */
+  hostReconnectMs: () => number;
   now?: () => number;
   instanceId?: string;
   leaseMs?: number;
@@ -177,6 +180,41 @@ export function createMatchRuntime(deps: MatchRuntimeDeps) {
           })),
         );
       }
+      for (const summary of effects.flatMap((e) => (e.kind === 'round_summary' ? [e] : []))) {
+        if (summary.items.length === 0) continue;
+        await manager.upsert(
+          MatchQuestionEntity,
+          summary.items.map((item, ordinal) => ({
+            matchId: state.matchId,
+            questionRef: item.ref,
+            roundIndex: summary.roundIndex,
+            roundType: summary.roundType,
+            ordinal,
+            sourceQuestionId: item.question.sourceQuestionId,
+            subject: item.question.subject ?? null,
+            topic: item.question.topic ?? null,
+            question: item.question,
+          })),
+          ['matchId', 'questionRef'],
+        );
+        const outcomes = summary.items.flatMap((item) =>
+          item.outcomes.map((o) => ({
+            matchId: state.matchId,
+            questionRef: item.ref,
+            seat: o.seat,
+            result: o.result,
+            elapsedMs: o.elapsedMs,
+            buzzWon: o.buzzWon,
+          })),
+        );
+        if (outcomes.length > 0) {
+          await manager.upsert(MatchQuestionOutcomeEntity, outcomes, [
+            'matchId',
+            'questionRef',
+            'seat',
+          ]);
+        }
+      }
       const interventions = effects.flatMap((e) => (e.kind === 'intervention' ? [e] : []));
       if (interventions.length > 0) {
         await manager.insert(
@@ -198,7 +236,12 @@ export function createMatchRuntime(deps: MatchRuntimeDeps) {
           stateVersion: state.version,
           status: state.status,
           endReason: state.endReason,
-          ...(finished ? { endedAt: new Date(now()) } : {}),
+          ...(finished
+            ? {
+                endedAt: new Date(now()),
+                answersPublic: state.settings.revealAnswersAfterMatch ?? true,
+              }
+            : {}),
         },
       );
       if (finished) {
@@ -375,7 +418,7 @@ export function createMatchRuntime(deps: MatchRuntimeDeps) {
         }
         if (
           state.hostDisconnectedAt !== null &&
-          at - state.hostDisconnectedAt >= deps.hostReconnectMs
+          at - state.hostDisconnectedAt >= deps.hostReconnectMs()
         ) {
           await dispatch(matchId, { type: 'host_timeout' });
         }
@@ -409,6 +452,14 @@ export function createMatchRuntime(deps: MatchRuntimeDeps) {
     dispatch,
 
     /** Trận đang diễn ra của phòng. */
+    /** Kết thúc trận đang diễn ra của phòng (quản trị viên đóng phòng vi phạm). */
+    async forceEnd(roomId: string, actorUserId: string): Promise<boolean> {
+      const matchId = await store.activeMatchOf(roomId);
+      if (!matchId) return false;
+      await dispatch(matchId, { type: 'force_end' }, { actorUserId });
+      return true;
+    },
+
     activeMatchOf(roomId: string): Promise<string | null> {
       return store.activeMatchOf(roomId);
     },

@@ -1,7 +1,12 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 export type SessionRevokedReason =
-  'logout' | 'refresh_reuse' | 'password_changed' | 'password_reset' | 'account_locked';
+  | 'logout'
+  | 'refresh_reuse'
+  | 'password_changed'
+  | 'password_reset'
+  | 'account_locked'
+  | 'account_deleted';
 
 /** Một lần đăng nhập. Access token mang `sid` trỏ tới phiên này để thu hồi được ngay (BR-AUTH-02). */
 @Entity({ name: 'auth_sessions' })

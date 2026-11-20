@@ -2,7 +2,8 @@ import {
   type Ack,
   CommonErrorCode,
   hasRoomPermission,
-  REACTIONS,
+  DEFAULT_REACTIONS,
+  REACTION_PALETTE,
   RoomErrorCode,
   RoomPermission,
   type RoomRole,
@@ -29,8 +30,9 @@ function channelsOf(roomId: string): string[] {
 }
 
 const subscribePayload = z.object({ roomId: z.uuid() });
-const reactionPayload = z.object({ roomId: z.uuid(), emoji: z.enum(REACTIONS) });
+const reactionPayload = z.object({ roomId: z.uuid(), emoji: z.enum(REACTION_PALETTE) });
 
+/** Vai trò trong phòng theo ma trận 2.2; `monitor` không gửi được reaction. */
 function viewerRoomRole(viewer: RoomViewer): RoomRole | null {
   return viewer.role === 'pending' ? null : viewer.role;
 }
@@ -59,6 +61,8 @@ export interface RoomRealtimeDeps {
   limiters: LimiterFactory;
   logger: Logger;
   now?: () => number;
+  /** Reaction đang bật theo cấu hình hệ thống (DL-049); mặc định 4 reaction của mục 13. */
+  reactions?: () => readonly string[];
   /** Kết nối của một danh tính trong phòng đổi trạng thái (Game Engine tạm dừng trận khi cần). */
   onPresence?: (roomId: string, key: string, connected: boolean) => void;
 }
@@ -75,6 +79,7 @@ export function createRoomRealtime({
   logger,
   now = Date.now,
   onPresence = () => undefined,
+  reactions = () => DEFAULT_REACTIONS,
 }: RoomRealtimeDeps) {
   // BR-SPEC-02: 1 reaction / giây / người.
   const reactionLimiter = limiters({ keyPrefix: 'reaction', points: 1, durationSeconds: 1 });
@@ -111,8 +116,11 @@ export function createRoomRealtime({
     const principal = socket.data.principal;
     /** Phòng socket này đang theo dõi, kèm khóa danh tính trong phòng. */
     const subscriptions = new Map<string, string>();
+    /** Phòng socket này đang giám sát (không ghi trạng thái kết nối). */
+    const monitoring = new Set<string>();
 
     async function markDisconnected(roomId: string, key: string): Promise<void> {
+      if (monitoring.delete(roomId)) return;
       if (await presence.disconnect(roomId, key, socket.id, now())) {
         events.stateChanged(roomId);
         onPresence(roomId, key, false);
@@ -132,6 +140,20 @@ export function createRoomRealtime({
           return;
         }
         const audience = viewer.role === 'host' ? 'host' : 'member';
+        if (viewer.role === 'monitor') {
+          // Giám sát (BR-ROLE-04): nhận bản như khán giả; không phải người tham gia nên không
+          // có trạng thái kết nối, không thay kết nối khác và không hiện trong danh sách phòng.
+          await socket.join([
+            roomChannels.all(roomId),
+            roomChannels.members(roomId),
+            roomChannels.principal(roomId, viewer.key),
+          ]);
+          subscriptions.set(roomId, viewer.key);
+          monitoring.add(roomId);
+          ack({ ok: true, data: { ...(await lobby.buildState(roomId, 'member')), monitor: true } });
+          return;
+        }
+        monitoring.delete(roomId);
         await socket.join([
           roomChannels.all(roomId),
           audience === 'host' ? roomChannels.host(roomId) : roomChannels.members(roomId),
@@ -188,6 +210,16 @@ export function createRoomRealtime({
           ack({
             ok: false,
             error: { code: CommonErrorCode.Forbidden, message: 'Bạn không được gửi reaction.' },
+          });
+          return;
+        }
+        if (!reactions().includes(emoji)) {
+          ack({
+            ok: false,
+            error: {
+              code: CommonErrorCode.ValidationError,
+              message: 'Reaction này đang không được bật.',
+            },
           });
           return;
         }

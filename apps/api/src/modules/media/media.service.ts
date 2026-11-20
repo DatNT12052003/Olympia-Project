@@ -3,6 +3,7 @@ import {
   type CreateUploadResponse,
   type createUploadRequestSchema,
   MEDIA_RULES,
+  type MediaKind,
   type MediaView,
   mediaKindOf,
   QuestionErrorCode,
@@ -59,6 +60,8 @@ export interface MediaServiceDeps {
   dataSource: DataSource;
   storage: ObjectStorage;
   limiters: LimiterFactory;
+  /** Dung lượng tối đa theo loại media (cấu hình hệ thống, DL-049); mặc định `MEDIA_RULES`. */
+  maxBytes?: (kind: MediaKind) => number;
   now?: () => Date;
 }
 
@@ -66,6 +69,7 @@ export function createMediaService({
   dataSource,
   storage,
   limiters,
+  maxBytes: maxBytesOf = (kind) => MEDIA_RULES[kind].maxBytes,
   now = () => new Date(),
 }: MediaServiceDeps) {
   const repo = dataSource.getRepository(MediaAssetEntity);
@@ -89,7 +93,7 @@ export function createMediaService({
         QuestionErrorCode.MediaTypeNotAllowed,
       );
     }
-    const { maxBytes } = MEDIA_RULES[kind];
+    const maxBytes = maxBytesOf(kind);
     if (sizeBytes > maxBytes) {
       throw new AppError(
         413,

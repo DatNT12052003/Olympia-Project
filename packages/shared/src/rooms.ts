@@ -25,6 +25,7 @@ export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 4;
 /** Reaction được phép (mục 13). */
+/** Reaction mặc định (mục 13); danh sách đang bật do Super Admin cấu hình (DL-049). */
 export const REACTIONS = ['👍', '❤️', '😂', '🔥'] as const;
 
 export const roomStatusSchema = z.enum(['draft', 'open', 'in_match', 'closed']);

@@ -68,7 +68,8 @@ export function SpectatorMatch({
   view: MatchView;
   room: RoomState;
   clockOffset: number;
-  onSendReaction: (emoji: string) => Promise<string | null>;
+  /** Bỏ trống khi Super Admin/Manager giám sát (BR-ROLE-04): không gửi được cảm xúc. */
+  onSendReaction?: (emoji: string) => Promise<string | null>;
 }) {
   const remaining = useRemainingMs(view.timer, clockOffset);
   const round = view.round;
@@ -84,7 +85,8 @@ export function SpectatorMatch({
       <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <div className="min-w-0">
           <p className="text-xs text-stage-200">
-            {room.room.name} · Bạn đang xem với vai trò khán giả
+            {room.room.name} ·{' '}
+            {onSendReaction ? 'Bạn đang xem với vai trò khán giả' : 'Bạn đang giám sát phòng'}
           </p>
           <p className="truncate text-[15px] font-bold lg:text-xl lg:font-extrabold">
             {roundTitle(view)}{' '}
@@ -121,9 +123,14 @@ export function SpectatorMatch({
             </div>
           </div>
           <PlayerCards view={view} />
-          <section aria-label="Gửi cảm xúc" className="self-center rounded-2xl bg-stage-800 p-3">
+          <section
+            aria-label={onSendReaction ? 'Gửi cảm xúc' : 'Âm thanh'}
+            className="self-center rounded-2xl bg-stage-800 p-3"
+          >
             <div className="flex flex-wrap items-center justify-center gap-2.5">
-              <ReactionBar enabled={room.room.reactionsEnabled} onSend={onSendReaction} />
+              {onSendReaction && (
+                <ReactionBar enabled={room.room.reactionsEnabled} onSend={onSendReaction} />
+              )}
               <SpeakerToggle />
             </div>
             <AvStatusNote />
@@ -226,9 +233,14 @@ export function SpectatorMatch({
 
         <aside className="flex min-w-0 flex-col gap-3.5 lg:w-80 lg:shrink-0">
           <Scoreboard players={view.players} />
-          <section aria-label="Gửi cảm xúc" className="rounded-2xl bg-stage-800 p-4">
+          <section
+            aria-label={onSendReaction ? 'Gửi cảm xúc' : 'Âm thanh'}
+            className="rounded-2xl bg-stage-800 p-4"
+          >
             <div className="flex flex-wrap items-center justify-center gap-2.5">
-              <ReactionBar enabled={room.room.reactionsEnabled} onSend={onSendReaction} />
+              {onSendReaction && (
+                <ReactionBar enabled={room.room.reactionsEnabled} onSend={onSendReaction} />
+              )}
               <SpeakerToggle />
             </div>
             <AvStatusNote />

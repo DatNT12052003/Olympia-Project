@@ -6,7 +6,7 @@ import {
   type ReviewDetail,
   type ReviewQueueItem,
 } from '@olympia/shared';
-import { type DataSource, In } from 'typeorm';
+import { type DataSource, type EntityManager, In } from 'typeorm';
 import type { z } from 'zod';
 import type { UserPrincipal } from '../../shared/auth/principal';
 import { ConflictError, NotFoundError } from '../../shared/errors/app-error';
@@ -273,6 +273,50 @@ export function createPublicSetsService({
           details: { setId: version.setId, versionNo: version.versionNo, name: version.name },
         });
       });
+    },
+
+    /**
+     * Gỡ bộ public vi phạm (15.2, 15.3): phiên bản đang public không còn hiển thị; kịch bản đã chọn
+     * vẫn dùng được (BR-QB-07).
+     */
+    async takedown(
+      manager: EntityManager,
+      actor: UserPrincipal,
+      versionId: string,
+      reason: string,
+    ): Promise<void> {
+      const version = await manager.findOne(QuestionSetVersionEntity, {
+        where: { id: versionId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!version) throw new NotFoundError('Không tìm thấy phiên bản bộ câu hỏi.');
+      if (version.status !== 'approved' && version.status !== 'pending') return;
+      await manager.update(
+        QuestionSetVersionEntity,
+        { id: version.id },
+        { status: 'withdrawn', reviewedBy: actor.userId, reviewedAt: now(), reviewReason: reason },
+      );
+      await writeAuditLog(manager, {
+        actorUserId: actor.userId,
+        action: 'question_set.takedown',
+        targetType: 'question_set_version',
+        targetId: version.id,
+        details: { setId: version.setId, versionNo: version.versionNo, reason },
+      });
+    },
+
+    /** Thông tin bộ public để gắn vào báo cáo vi phạm (tên, người sở hữu). */
+    async reportTarget(versionId: string): Promise<{ label: string; ownerUserId: string } | null> {
+      const row = await dataSource
+        .createQueryBuilder(QuestionSetVersionEntity, 'v')
+        .innerJoin(QuestionSetEntity, 's', 's.id = v.set_id')
+        .select('v.name', 'name')
+        .addSelect('v.version_no', 'versionNo')
+        .addSelect('s.owner_user_id', 'ownerUserId')
+        .where('v.id = :versionId', { versionId })
+        .andWhere("v.status IN ('approved', 'superseded', 'withdrawn')")
+        .getRawOne<{ name: string; versionNo: number; ownerUserId: string }>();
+      return row ? { label: row.name, ownerUserId: row.ownerUserId } : null;
     },
 
     /** Từ chối kèm lý do (5.4 bước 2). */

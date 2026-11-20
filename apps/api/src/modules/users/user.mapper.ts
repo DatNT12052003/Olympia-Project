@@ -25,6 +25,8 @@ export function toAdminUser(user: UserEntity, lastActiveAt: Date | null): AdminU
     status: user.status,
     lockedAt: user.lockedAt?.toISOString() ?? null,
     lockedReason: user.lockedReason,
+    deletionRequestedAt: user.deletionRequestedAt?.toISOString() ?? null,
+    warningCount: user.warningCount,
     organizationId: user.organizationId,
     createdAt: user.createdAt.toISOString(),
     lastActiveAt: lastActiveAt?.toISOString() ?? null,

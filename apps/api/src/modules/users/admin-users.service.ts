@@ -9,7 +9,12 @@ import {
 import type { DataSource, SelectQueryBuilder } from 'typeorm';
 import type { z } from 'zod';
 import type { UserPrincipal } from '../../shared/auth/principal';
-import { BadRequestError, ForbiddenError, NotFoundError } from '../../shared/errors/app-error';
+import {
+  BadRequestError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+} from '../../shared/errors/app-error';
 import { writeAuditLog } from '../audit/audit-log';
 import { AuthSessionEntity } from '../auth/auth-session.entity';
 import type { AuthService } from '../auth/auth.service';
@@ -96,7 +101,18 @@ export function createAdminUsersService({
     }
   }
 
+  /** Tài khoản chờ xóa/đã xóa không khóa, mở khóa hay gửi email được nữa (DL-008). */
+  function assertNotDeleted(user: UserEntity): void {
+    if (user.status === 'pending_deletion' || user.status === 'deleted') {
+      throw new ConflictError(
+        user.status === 'deleted' ? 'Tài khoản đã bị xóa.' : 'Tài khoản đang chờ xóa.',
+      );
+    }
+  }
+
   return {
+    assertNotDeleted,
+
     async list(
       actor: UserPrincipal,
       filters: z.output<typeof listUsersQuerySchema>,
@@ -147,6 +163,7 @@ export function createAdminUsersService({
       const user = await loadInScope(actor, userId);
       assertNotSelf(actor, user);
       if (user.status === 'locked') return present(user);
+      assertNotDeleted(user);
 
       const event = await dataSource.transaction(async (manager) => {
         user.status = 'locked';
@@ -169,6 +186,7 @@ export function createAdminUsersService({
     async unlock(actor: UserPrincipal, userId: string): Promise<AdminUser> {
       const user = await loadInScope(actor, userId);
       if (user.status === 'active') return present(user);
+      assertNotDeleted(user);
       await dataSource.transaction(async (manager) => {
         user.status = 'active';
         user.lockedAt = null;
@@ -187,6 +205,7 @@ export function createAdminUsersService({
     /** Gửi email đặt lại mật khẩu cho người dùng (không để quản trị viên biết mật khẩu). */
     async requestPasswordReset(actor: UserPrincipal, userId: string): Promise<void> {
       const user = await loadInScope(actor, userId);
+      assertNotDeleted(user);
       await authService.sendPasswordReset(user);
       await dataSource.transaction((manager) =>
         writeAuditLog(manager, {
@@ -201,6 +220,7 @@ export function createAdminUsersService({
     /** Gửi lại email xác minh cho tài khoản chưa xác minh. */
     async resendVerificationEmail(actor: UserPrincipal, userId: string): Promise<void> {
       const user = await loadInScope(actor, userId);
+      assertNotDeleted(user);
       await authService.sendVerificationEmailTo(user);
       await dataSource.transaction((manager) =>
         writeAuditLog(manager, {

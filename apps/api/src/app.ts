@@ -5,6 +5,8 @@ import helmet from 'helmet';
 import type { Logger } from 'pino';
 import { pinoHttp } from 'pino-http';
 import type { Env } from './config/env';
+import { createAdminRoomsRouter, createAuditLogsRouter } from './modules/admin/admin.routes';
+import type { AdminService } from './modules/admin/admin.service';
 import { createAuthRouter } from './modules/auth/auth.routes';
 import { createAvRouter } from './modules/av/av.routes';
 import type { AvService } from './modules/av/av.service';
@@ -22,6 +24,18 @@ import type { HealthService } from './modules/health/health.service';
 import type { LimiterFactory } from './infrastructure/rate-limit/rate-limiter';
 import { createMatchRouter } from './modules/game/match.routes';
 import type { MatchService } from './modules/game/match.service';
+import { createResultsRouter } from './modules/game/results.routes';
+import type { ResultsService } from './modules/game/results.service';
+import {
+  createReportModerationRouter,
+  createReportsRouter,
+} from './modules/reports/reports.routes';
+import type { ReportsService } from './modules/reports/reports.service';
+import {
+  createAdminSettingsRouter,
+  createPublicSettingsRouter,
+} from './modules/settings/settings.routes';
+import type { SettingsService } from './modules/settings/settings.service';
 import type { LobbyService } from './modules/rooms/lobby.service';
 import { createRoomsRouter } from './modules/rooms/rooms.routes';
 import type { RoomsService } from './modules/rooms/rooms.service';
@@ -49,6 +63,10 @@ export interface AppDependencies {
   questionBank: QuestionBankModule;
   scriptsService: ScriptsService;
   matchService: MatchService;
+  resultsService: ResultsService;
+  settingsService: SettingsService;
+  reportsService: ReportsService;
+  adminService: AdminService;
   avService: AvService;
   limiters: LimiterFactory;
 }
@@ -66,6 +84,10 @@ export function createApp({
   questionBank,
   scriptsService,
   matchService,
+  resultsService,
+  settingsService,
+  reportsService,
+  adminService,
   avService,
   limiters,
 }: AppDependencies): Express {
@@ -93,6 +115,13 @@ export function createApp({
   api.use('/me', createMeRouter(usersService));
   api.use('/admin/users', createAdminUsersRouter(adminUsersService));
   api.use('/admin/organizations', createOrganizationsRouter(organizationsService));
+  api.use('/admin/settings', createAdminSettingsRouter(settingsService));
+  api.use('/admin/rooms', createAdminRoomsRouter(adminService));
+  api.use('/admin/audit-logs', createAuditLogsRouter(adminService));
+  api.use('/settings', createPublicSettingsRouter(settingsService));
+  api.use('/matches', createResultsRouter(resultsService));
+  api.use('/reports', createReportsRouter(reportsService));
+  api.use('/moderation/reports', createReportModerationRouter(reportsService));
   api.use('/rooms/:roomId/match', createMatchRouter(matchService));
   api.use('/rooms/:roomId/av', createAvRouter(avService));
   api.use(

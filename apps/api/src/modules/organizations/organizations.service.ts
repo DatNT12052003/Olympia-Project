@@ -185,6 +185,30 @@ export function createOrganizationsService(dataSource: DataSource) {
     async exists(id: string): Promise<boolean> {
       return dataSource.getRepository(OrganizationEntity).existsBy({ id });
     },
+
+    /**
+     * Phạm vi quản trị (DL-005): Super Admin quản lý mọi người dùng; Manager quản lý người dùng
+     * `member` thuộc tổ chức mình được gán.
+     */
+    async inStaffScope(actor: UserPrincipal, userId: string): Promise<boolean> {
+      if (actor.systemRole === 'super_admin') return true;
+      if (actor.systemRole !== 'manager') return false;
+      return dataSource
+        .getRepository(UserEntity)
+        .createQueryBuilder('u')
+        .innerJoin(OrganizationManagerEntity, 'm', 'm.organization_id = u.organization_id')
+        .where('u.id = :userId AND m.user_id = :actorId', { userId, actorId: actor.userId })
+        .andWhere("u.system_role = 'member'")
+        .getExists();
+    },
+
+    /** Tổ chức của người dùng (gắn báo cáo vi phạm cho Manager tương ứng). */
+    async organizationOf(userId: string): Promise<string | null> {
+      const user = await dataSource
+        .getRepository(UserEntity)
+        .findOne({ where: { id: userId }, select: { id: true, organizationId: true } });
+      return user?.organizationId ?? null;
+    },
   };
 }
 

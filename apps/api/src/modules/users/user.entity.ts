@@ -7,7 +7,7 @@ import {
 } from 'typeorm';
 
 export type SystemRoleValue = 'member' | 'manager' | 'super_admin';
-export type UserStatusValue = 'active' | 'locked';
+export type UserStatusValue = 'active' | 'locked' | 'pending_deletion' | 'deleted';
 
 @Entity({ name: 'users' })
 export class UserEntity {
@@ -47,6 +47,17 @@ export class UserEntity {
 
   @Column({ name: 'organization_id', type: 'uuid', nullable: true })
   organizationId!: string | null;
+
+  /** Thời điểm yêu cầu xóa tài khoản; hết ân hạn thì ẩn danh hóa (DL-008). */
+  @Column({ name: 'deletion_requested_at', type: 'timestamptz', nullable: true })
+  deletionRequestedAt!: Date | null;
+
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
+  deletedAt!: Date | null;
+
+  /** Số lần bị cảnh báo khi xử lý báo cáo vi phạm (DL-050). */
+  @Column({ name: 'warning_count', type: 'integer', default: 0 })
+  warningCount!: number;
 
   @Column({ name: 'privacy_accepted_at', type: 'timestamptz' })
   privacyAcceptedAt!: Date;

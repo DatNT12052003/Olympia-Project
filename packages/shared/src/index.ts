@@ -9,3 +9,6 @@ export * from './questions.js';
 export * from './realtime.js';
 export * from './rooms.js';
 export * from './scripts.js';
+export * from './results.js';
+export * from './settings.js';
+export * from './reports.js';

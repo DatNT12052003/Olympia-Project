@@ -17,6 +17,7 @@ import { memoryLimiterFactory } from '../../infrastructure/rate-limit/rate-limit
 import {
   createOpenRoom,
   createTestContext,
+  createUserAndLogin,
   joinAsGuest,
   type TestContext,
 } from '../../test/test-context';
@@ -257,6 +258,31 @@ describe('Realtime trận đấu', () => {
       answer: { type: 'true_false', value: true },
     });
     expect(answered.ok).toBe(true);
+  });
+
+  it('Super Admin giám sát giữa trận: nhận bản khán giả, không thấy đáp án, không điều khiển/trả lời (BR-ROLE-04)', async () => {
+    const m = await liveMatch();
+    const admin = await createUserAndLogin(ctx, { systemRole: 'super_admin' });
+    const adminClient = await connect(admin.accessToken, m.roomId);
+
+    const sync = await ack<MatchView | null>(adminClient, 'match:sync', { roomId: m.roomId });
+    expect(sync.ok && sync.data?.audience).toBe('spectator');
+
+    const adminSees = nextMatchState(adminClient, (v) => v.round.question?.phase === 'showing');
+    await hostCommand(m.hostClient, m.roomId, { type: 'next_question' });
+    const view = await adminSees;
+    expect(view.audience).toBe('spectator');
+    expect(view.round.question?.correctAnswer).toBeNull();
+
+    const command = await hostCommand(adminClient, m.roomId, { type: 'end_match' });
+    expect(command.ok).toBe(false);
+    const answer = await ack(adminClient, 'match:answer', {
+      roomId: m.roomId,
+      actionId: randomUUID(),
+      questionRef: view.round.question!.ref,
+      answer: { type: 'true_false', value: true },
+    });
+    expect(answer.ok).toBe(false);
   });
 
   it('Host mất kết nối: trận tạm dừng cho mọi người (4.5)', async () => {

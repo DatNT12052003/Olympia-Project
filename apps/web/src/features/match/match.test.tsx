@@ -569,6 +569,7 @@ describe('Kịch bản', () => {
         autoReadSeconds: 3,
         autoRevealSeconds: 3,
         tiebreakEnabled: true,
+        revealAnswersAfterMatch: true,
       },
       rounds: [
         {

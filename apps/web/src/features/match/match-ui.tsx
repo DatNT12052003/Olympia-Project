@@ -4,6 +4,7 @@ import {
   type MatchView,
   OPTION_LETTERS,
 } from '@olympia/shared';
+import { Link } from 'react-router';
 import { Modal } from '../../components/Modal';
 import { SEAT_BG } from '../rooms/room-format';
 import { seconds } from './match-format';
@@ -219,7 +220,7 @@ export function PauseBanner({ view }: { view: MatchView }) {
   );
 }
 
-/** Kết quả khi trận kết thúc (tổng kết đầy đủ ở P7). */
+/** Kết quả khi trận kết thúc; tổng kết đầy đủ ở trang `/tran/:matchId` (9.4). */
 export function MatchResultDialog({ view, onClose }: { view: MatchView; onClose: () => void }) {
   const ranked = [...view.players].sort((a, b) => b.score - a.score || a.seat - b.seat);
   const top = ranked[0]?.score ?? 0;
@@ -249,7 +250,13 @@ export function MatchResultDialog({ view, onClose }: { view: MatchView; onClose:
           </li>
         ))}
       </ol>
-      <div className="mt-5 flex justify-end">
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <Link
+          to={`/tran/${view.matchId}?phong=${view.roomId}`}
+          className="inline-flex h-11 items-center rounded-lg border border-slate-300 bg-white px-5 font-semibold text-slate-900 no-underline hover:bg-slate-50 hover:no-underline"
+        >
+          Xem tổng kết
+        </Link>
         <button
           type="button"
           onClick={onClose}

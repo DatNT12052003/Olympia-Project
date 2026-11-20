@@ -21,6 +21,8 @@ export function createAuthRouter(authService: AuthService, cookies: AuthCookieCo
   router.post('/forgot-password', c.forgotPassword);
   router.post('/reset-password', c.resetPassword);
   router.post('/change-password', requireUser, c.changePassword);
+  router.post('/delete-account', requireUser, c.deleteAccount);
+  router.post('/cancel-deletion', c.cancelDeletion);
   router.post('/guest', c.guest);
   return router;
 }

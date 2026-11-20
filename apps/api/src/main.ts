@@ -1,12 +1,14 @@
 import 'reflect-metadata';
 import { createServer } from 'node:http';
 import { createAdapter } from '@socket.io/redis-adapter';
+import { mediaMaxBytes } from '@olympia/shared';
 import { createApp } from './app';
 import { loadEnv } from './config/env';
 import { createDataSource } from './infrastructure/database/data-source';
 import { createRedisLimiterFactory } from './infrastructure/rate-limit/rate-limiter';
 import { createRedisClient } from './infrastructure/redis/redis-client';
 import { createS3ObjectStorage } from './infrastructure/storage/object-storage';
+import { createAdminService } from './modules/admin/admin.service';
 import { createAuthService } from './modules/auth/auth.service';
 import { createArgon2PasswordHasher } from './modules/auth/password-hasher';
 import type { SessionsRevokedEvent } from './modules/auth/session-store';
@@ -24,6 +26,13 @@ import { createRoomRealtime } from './modules/realtime/room-realtime';
 import { createRedisPresenceStore } from './modules/rooms/presence-store';
 import { createRoomMaintenance, createRoomsModule } from './modules/rooms/rooms.module';
 import { createOrganizationsService } from './modules/organizations/organizations.service';
+import { createReportsService } from './modules/reports/reports.service';
+import {
+  createSettingsService,
+  defaultSettingsFromEnv,
+  roomsConfigFrom,
+} from './modules/settings/settings.service';
+import { createDataRetention } from './modules/users/data-retention';
 import {
   createRealtimeServer,
   createTokenSocketAuthenticator,
@@ -63,6 +72,16 @@ async function main(): Promise<void> {
     logger.warn({ err: error }, 'Không kết nối được object storage; upload media sẽ lỗi');
   });
 
+  // Cấu hình hệ thống (DL-049): nạp trước khi dựng các module đọc giới hạn/thời gian chờ.
+  const settingsService = createSettingsService({
+    dataSource,
+    defaults: defaultSettingsFromEnv(env),
+    logger,
+  });
+  await settingsService.load();
+  settingsService.start();
+  const mailer = createSmtpMailer(env.SMTP_URL, env.MAIL_FROM);
+
   const healthService = createHealthService({
     database: () => dataSource.query('SELECT 1'),
     redis: () => redis.ping(),
@@ -85,7 +104,7 @@ async function main(): Promise<void> {
       guestSessionTtlHours: env.GUEST_SESSION_TTL_HOURS,
     }),
     passwords,
-    mailer: createSmtpMailer(env.SMTP_URL, env.MAIL_FROM),
+    mailer,
     limiters,
     logger,
     config: {
@@ -98,7 +117,12 @@ async function main(): Promise<void> {
   });
   const organizationsService = createOrganizationsService(dataSource);
   const presence = createRedisPresenceStore(redis);
-  const questionBank = createQuestionBankModule({ dataSource, storage, limiters });
+  const questionBank = createQuestionBankModule({
+    dataSource,
+    storage,
+    limiters,
+    mediaMaxBytes: (kind) => mediaMaxBytes(settingsService.get())[kind],
+  });
   const scriptsService = createScriptsService({
     dataSource,
     sources: questionBank.questionSources,
@@ -110,12 +134,7 @@ async function main(): Promise<void> {
     limiters,
     authService,
     scripts: scriptsService.roomScripts,
-    config: {
-      maxActiveRoomsPerHost: env.MAX_ACTIVE_ROOMS_PER_HOST,
-      maxSpectatorsPerRoom: env.MAX_SPECTATORS_PER_ROOM,
-      reconnectGraceSeconds: env.RECONNECT_GRACE_SECONDS,
-      roomIdleMinutes: env.ROOM_IDLE_MINUTES,
-    },
+    config: roomsConfigFrom(settingsService),
   });
 
   const game = createGameModule({
@@ -128,7 +147,12 @@ async function main(): Promise<void> {
     scripts: scriptsService,
     sources: questionBank.questionSources,
     logger,
-    hostReconnectMinutes: env.HOST_RECONNECT_MINUTES,
+    hostReconnectMinutes: () => settingsService.get().hostReconnectMinutes,
+    results: {
+      wasRoomMember: rooms.lobbyService.wasMember,
+      countHostedRooms: (hostUserId) => rooms.roomsService.countHosted(hostUserId),
+      staffCanView: (actor, hostUserId) => organizationsService.inStaffScope(actor, hostUserId),
+    },
   });
 
   const av = createAvModule({
@@ -143,19 +167,59 @@ async function main(): Promise<void> {
     publicUrl: env.LIVEKIT_URL,
   });
 
+  const adminUsersService = createAdminUsersService({
+    dataSource,
+    authService,
+    organizationsService,
+  });
+  const adminService = createAdminService({
+    dataSource,
+    logger,
+    forceEndMatch: (roomId, actorUserId) => game.runtime.forceEnd(roomId, actorUserId),
+    forceCloseRoom: (roomId) => rooms.roomsService.forceClose(roomId),
+  });
+  const reportsService = createReportsService({
+    dataSource,
+    limiters,
+    mailer,
+    logger,
+    publicSets: questionBank.publicSetsService,
+    rooms: rooms.lobbyService,
+    closeRoom: (actor, roomId, reason) => adminService.closeRoom(actor, roomId, reason),
+    lockUser: async (actor, userId, reason) => {
+      await adminUsersService.lock(actor, userId, { reason });
+    },
+    organizations: organizationsService,
+  });
+  // Chính sách dữ liệu (DL-008): ẩn danh tài khoản hết ân hạn, xóa nhật ký quá hạn.
+  const dataRetention = createDataRetention({
+    dataSource,
+    anonymizers: [
+      (manager, userId) => game.resultsService.anonymizePlayer(manager, userId),
+      (manager, userId) => rooms.lobbyService.anonymizeUser(manager, userId),
+      (manager, userId) => reportsService.anonymizeUser(manager, userId),
+    ],
+    tryLock: (name, ttlMs) => presence.tryLock(name, ttlMs),
+    logger,
+  });
+
   const app = createApp({
     env,
     logger,
     healthService,
     authService,
     usersService: createUsersService(dataSource),
-    adminUsersService: createAdminUsersService({ dataSource, authService, organizationsService }),
+    adminUsersService,
     organizationsService,
     roomsService: rooms.roomsService,
     lobbyService: rooms.lobbyService,
     questionBank,
     scriptsService,
     matchService: game.matchService,
+    resultsService: game.resultsService,
+    settingsService,
+    reportsService,
+    adminService,
     avService: av.avService,
     limiters,
   });
@@ -173,6 +237,7 @@ async function main(): Promise<void> {
     presence,
     limiters,
     logger,
+    reactions: () => settingsService.get().reactions,
     onPresence: (roomId, key, connected) => {
       game.runtime.onPresence(roomId, key, connected).catch((error: unknown) => {
         logger.error({ err: error, roomId }, 'Lỗi cập nhật kết nối trong trận');
@@ -201,6 +266,7 @@ async function main(): Promise<void> {
   await game.runtime.start();
   const maintenance = createRoomMaintenance({ lobby: rooms.lobbyService, presence, logger });
   maintenance.start();
+  dataRetention.start();
 
   httpServer.listen(env.PORT, () => {
     logger.info(`API đang chạy tại http://localhost:${env.PORT}`);
@@ -212,6 +278,8 @@ async function main(): Promise<void> {
     shuttingDown = true;
     logger.info({ signal }, 'Đang tắt server');
     maintenance.stop();
+    dataRetention.stop();
+    settingsService.stop();
     void game.runtime.stop();
 
     const forceExit = setTimeout(() => {

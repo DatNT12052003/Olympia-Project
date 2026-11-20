@@ -244,6 +244,15 @@ describe('Vòng Vượt chướng ngại vật', () => {
     expect(view.keyword).toMatchObject({ answer: 'KHÔNG GIAN', solvedBy: 2, revealed: true });
     expect(view.pieces.every(Boolean)).toBe(true);
     expect(game.full().roundFinished).toBe(true);
+
+    // Tóm tắt vòng (mục 14): hàng 1, 2 đã hiển thị; từ khóa ghi các lần đoán là giành quyền.
+    const summary = obstaclePlugin.summary(game.state.round as never);
+    expect(summary.map((s) => s.ref)).toEqual(['0.1', '0.2', keywordRef]);
+    expect(summary[1]!.outcomes).toEqual([]);
+    expect(summary[2]!.outcomes).toEqual([
+      { seat: 2, result: 'correct', elapsedMs: null, buzzWon: true },
+      { seat: 3, result: 'wrong', elapsedMs: null, buzzWon: true },
+    ]);
   });
 
   it('mở hết hàng thì mở ô trung tâm (điểm CNV 10); không ai giải thì Host công bố từ khóa', () => {
@@ -421,6 +430,22 @@ describe('Vòng Về đích', () => {
     // Hết gói: sang lượt ghế 2.
     game.command({ type: 'next_question' });
     expect(fv(game)).toMatchObject({ phase: 'picking', turnSeat: 2 });
+
+    // Tóm tắt vòng: Player chính và người giành quyền đều có kết quả; chuông tính là giành quyền.
+    game.command({ type: 'end_match' });
+    const summary = game.effects.find((e) => e.kind === 'round_summary');
+    expect(summary).toBeDefined();
+    const items = (summary as Extract<EngineEffect, { kind: 'round_summary' }>).items;
+    expect(items.map((i) => i.outcomes.map((o) => [o.seat, o.result, o.buzzWon]))).toEqual([
+      [
+        [1, 'skipped', false],
+        [3, 'correct', true],
+      ],
+      [
+        [1, 'wrong', false],
+        [2, 'wrong', true],
+      ],
+    ]);
   });
 
   it('Ngôi sao hy vọng chỉ đổi được trước khi câu hiển thị', () => {

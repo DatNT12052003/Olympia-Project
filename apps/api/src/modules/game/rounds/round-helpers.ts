@@ -9,7 +9,7 @@ import {
   type SeatAnswerView,
 } from '@olympia/shared';
 import { BadRequestError } from '../../../shared/errors/app-error';
-import type { MatchQuestion } from '../engine/match-state';
+import type { MatchQuestion, QuestionOutcome } from '../engine/match-state';
 import { MatchRuleError, type RoundContext } from '../engine/round-plugin';
 
 /** Tiện ích dùng chung cho các plugin vòng thi. */
@@ -107,6 +107,38 @@ export function questionView(input: {
     answeringSeat: input.answeringSeat,
     answers: input.answers,
   };
+}
+
+/**
+ * Kết quả theo ghế từ bảng kết quả đã chấm của một câu (tóm tắt vòng, mục 14). Ghế có trong
+ * `extraSkipped` (Player đến lượt của câu bị bỏ qua) được tính là bỏ qua nếu chưa có kết quả.
+ */
+export function outcomesOf(
+  results: Record<string, 'correct' | 'wrong' | 'skipped'>,
+  answers: Record<string, { elapsedMs: number }>,
+  buzzed: readonly number[] = [],
+  extraSkipped: readonly number[] = [],
+): QuestionOutcome[] {
+  const outcomes: QuestionOutcome[] = Object.entries(results).map(([key, result]) => {
+    const seat = Number(key);
+    return {
+      seat,
+      result,
+      elapsedMs: answers[key]?.elapsedMs ?? null,
+      buzzWon: buzzed.includes(seat),
+    };
+  });
+  for (const seat of extraSkipped) {
+    if (!outcomes.some((o) => o.seat === seat)) {
+      outcomes.push({ seat, result: 'skipped', elapsedMs: null, buzzWon: false });
+    }
+  }
+  return outcomes.sort((a, b) => a.seat - b.seat);
+}
+
+/** Câu đã hiển thị và không bị hủy thì đưa vào tóm tắt vòng. */
+export function isSummarized(phase: string): boolean {
+  return phase !== 'pending' && phase !== 'voided';
 }
 
 /** Câu trả lời của một ghế ở câu cùng trả lời (hàng ngang, Tăng tốc). */

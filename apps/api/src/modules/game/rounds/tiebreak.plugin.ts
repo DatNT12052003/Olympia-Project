@@ -18,6 +18,8 @@ import {
   assertRef,
   FINAL_PHASES,
   isDefinitive,
+  isSummarized,
+  outcomesOf,
   questionView,
   type SeatEntry,
   suggest,
@@ -295,6 +297,16 @@ export const tiebreakPlugin: RoundPlugin<TiebreakState> = {
 
   spare(state) {
     return state.list.slice(state.pos + 1).map((ref) => state.questions[ref]!.question);
+  },
+
+  summary(state) {
+    return Object.values(state.questions)
+      .filter((q) => isSummarized(q.phase))
+      .map((q) => ({
+        ref: q.ref,
+        question: q.question,
+        outcomes: outcomesOf(q.results, q.answers, q.attempted),
+      }));
   },
 
   mediaIds(state) {

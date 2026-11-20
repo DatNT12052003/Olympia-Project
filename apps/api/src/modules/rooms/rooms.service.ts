@@ -461,6 +461,16 @@ export function createRoomsService(deps: RoomsServiceDeps) {
 
     closeRoom,
 
+    /** Quản trị viên đóng phòng vi phạm (15.1, 15.2); phòng phải đang mở (đã kết thúc trận). */
+    forceClose(roomId: string): Promise<boolean> {
+      return closeRoom(roomId, 'moderation', null);
+    },
+
+    /** Số phòng Host đã tạo (thống kê Host, mục 14). */
+    countHosted(hostUserId: string): Promise<number> {
+      return dataSource.getRepository(RoomEntity).countBy({ hostUserId });
+    },
+
     /**
      * Bắt đầu trận (8.3): khóa phòng, kiểm tra Host, phòng đang mở, đủ người chơi có ghế và đã
      * Sẵn sàng (BR-JOIN-04), rồi chạy `work` của Game Engine trong cùng transaction và chuyển
@@ -539,7 +549,7 @@ export function createRoomsService(deps: RoomsServiceDeps) {
    */
   async function closeRoom(
     roomId: string,
-    reason: 'host' | 'inactive',
+    reason: 'host' | 'inactive' | 'moderation',
     actor: UserPrincipal | null,
   ): Promise<boolean> {
     const closed = await dataSource.transaction(async (manager) => {

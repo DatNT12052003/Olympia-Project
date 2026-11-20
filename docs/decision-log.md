@@ -24,10 +24,10 @@
 | DL-003 | 2026-11-18 | Nghiệp vụ  | Luật vòng thi dạng preset, không bám một phiên bản luật chính thức         | Đã chấp nhận         |
 | DL-004 | 2026-11-18 | Nghiệp vụ  | Hỗ trợ cả nhập trên thiết bị và trả lời bằng lời; mặc định nhập trên thiết bị | Đã chấp nhận      |
 | DL-005 | 2026-11-18 | Nghiệp vụ  | Phạm vi Manager theo Tổ chức                                               | Đã chấp nhận    |
-| DL-006 | 2026-11-18 | Nghiệp vụ  | Bắt buộc kiểm duyệt bộ câu hỏi public trước khi hiển thị                   | Đề xuất         |
+| DL-006 | 2026-11-18 | Nghiệp vụ  | Bắt buộc kiểm duyệt bộ câu hỏi public trước khi hiển thị                   | Đã chấp nhận    |
 | DL-007 | 2026-11-18 | Nghiệp vụ  | Spectator xem video Host; giới hạn số Spectator mỗi phòng                  | Đã chấp nhận    |
-| DL-008 | 2026-11-18 | Nghiệp vụ  | Không ghi hình ở phiên bản đầu; có chính sách dữ liệu cá nhân              | Đề xuất         |
-| DL-009 | 2026-11-18 | Nghiệp vụ  | Chỉ tiêu phi chức năng phiên bản đầu, nghiệm thu bằng kiểm thử tải         | Đề xuất         |
+| DL-008 | 2026-11-18 | Nghiệp vụ  | Không ghi hình ở phiên bản đầu; có chính sách dữ liệu cá nhân              | Đã chấp nhận    |
+| DL-009 | 2026-11-18 | Nghiệp vụ  | Chỉ tiêu phi chức năng phiên bản đầu, nghiệm thu bằng kiểm thử tải         | Đã chấp nhận    |
 | DL-010 | 2026-11-18 | Kiến trúc  | Modular monolith với 4 module tách biệt                                    | Đã chấp nhận    |
 | DL-011 | 2026-11-18 | Kiến trúc  | Server là nguồn sự thật cho trạng thái, thời gian và điểm                  | Đã chấp nhận    |
 | DL-012 | 2026-11-18 | Kiến trúc  | Luật vòng thi là plugin của Game Engine                                    | Đã chấp nhận    |
@@ -41,8 +41,8 @@
 | DL-020 | 2026-11-18 | Công nghệ  | Validation dùng Zod, chia sẻ qua `packages/shared`                         | Đã chấp nhận    |
 | DL-021 | 2026-11-18 | Công nghệ  | Xác thực JWT ngắn hạn + refresh token xoay vòng trong cookie HttpOnly      | Đã chấp nhận    |
 | DL-022 | 2026-11-18 | Công nghệ  | Test runner frontend dùng Vitest                                           | Đã chấp nhận    |
-| DL-023 | –          | Hạ tầng    | Nơi triển khai production                                                  | Chưa quyết định |
-| DL-024 | –          | Hạ tầng    | Object storage và CDN production                                           | Chưa quyết định |
+| DL-023 | 2026-11-19 | Hạ tầng    | Production: VPS + Docker Compose, reverse proxy HTTPS                      | Đã chấp nhận    |
+| DL-024 | 2026-11-19 | Hạ tầng    | Media production: object storage S3-compatible thuê ngoài + CDN           | Đã chấp nhận    |
 | DL-025 | 2026-11-18 | Hạ tầng    | Object storage S3-compatible cho môi trường dev: SeaweedFS                 | Đã chấp nhận    |
 | DL-026 | 2026-11-18 | Kiến trúc  | Sảnh chờ: thao tác qua REST, trạng thái phòng đẩy xuống qua Socket.IO      | Đã chấp nhận    |
 | DL-027 | 2026-11-18 | Nghiệp vụ  | Link mời là mã phòng; "tạo link mới" = đổi mã phòng                        | Đã chấp nhận    |
@@ -65,6 +65,11 @@
 | DL-044 | 2026-11-19 | Nghiệp vụ  | Câu hỏi phụ dùng câu chưa dùng của trận; không cộng điểm                  | Đã chấp nhận    |
 | DL-045 | 2026-11-19 | Kiến trúc  | Chế độ tự động: plugin tự đi bước kế qua đồng hồ `auto`, engine nghỉ giữa vòng | Đã chấp nhận    |
 | DL-046 | 2026-11-19 | Nghiệp vụ  | Video/voice: kết nối từ sảnh chờ, quyền nói theo engine, khóa mic do server áp | Đã chấp nhận    |
+| DL-047 | 2026-11-19 | Kiến trúc  | Lưu câu đã dùng và kết quả theo ghế khi rời vòng (tóm tắt của plugin)      | Đã chấp nhận    |
+| DL-048 | 2026-11-19 | Nghiệp vụ  | Công bố đáp án sau trận: thiết lập kịch bản, Host bật/tắt từng trận       | Đã chấp nhận    |
+| DL-049 | 2026-11-19 | Nghiệp vụ  | Cấu hình hệ thống lưu DB, Super Admin sửa trên web, áp dụng ngay          | Đã chấp nhận    |
+| DL-050 | 2026-11-19 | Nghiệp vụ  | Báo cáo vi phạm: cảnh báo qua email, chặn phiên khách, phạm vi Manager    | Đã chấp nhận    |
+| DL-051 | 2026-11-20 | Nghiệp vụ  | Giám sát phòng: nhân viên vào ẩn danh, xem như khán giả, đóng phòng tại chỗ | Đề xuất         |
 
 ---
 
@@ -111,7 +116,7 @@
 ### DL-006 – Kiểm duyệt bắt buộc bộ câu hỏi public
 
 - **Bối cảnh:** Đặc tả Q6. Người dùng có học sinh; nội dung public cần được kiểm soát.
-- **Quyết định:** Bộ public phải được Manager/Super Admin duyệt trước khi hiển thị. Sửa bộ đã duyệt tạo phiên bản mới chờ duyệt; phiên bản cũ vẫn hiển thị.
+- **Quyết định (chốt 2026-11-19):** Bộ public phải được Manager/Super Admin duyệt trước khi hiển thị. Sửa bộ đã duyệt tạo phiên bản mới chờ duyệt; phiên bản cũ vẫn hiển thị.
 - **Hệ quả:** Cần versioning cho bộ câu hỏi public và hàng đợi kiểm duyệt. Có độ trễ trước khi bộ mới được dùng.
 - **Liên quan:** 5.4, BR-QB-09.
 
@@ -127,13 +132,14 @@
 
 - **Bối cảnh:** Đặc tả Q8. Ghi hình làm tăng chi phí lưu trữ và rủi ro pháp lý, nhất là với người dùng chưa thành niên.
 - **Quyết định:** Không ghi hình/ghi âm ở phiên bản đầu. Áp dụng chính sách dữ liệu: xóa tài khoản trong 30 ngày với kết quả trận được ẩn danh; nhật ký giữ 12 tháng; rà soát pháp lý trước phát hành.
-- **Hệ quả:** Cần job xóa/ẩn danh dữ liệu; cần văn bản chính sách quyền riêng tư.
+- **Chốt (2026-11-19, Product Owner):** Xóa tài khoản có **ân hạn 30 ngày**: người dùng xác nhận bằng mật khẩu (`POST /api/auth/delete-account`) → trạng thái `pending_deletion`, thu hồi mọi phiên, không đăng nhập được (lỗi `ACCOUNT_PENDING_DELETION`), email gửi liên kết "Giữ lại tài khoản" (`/giu-tai-khoan`, token `cancel_deletion` hiệu lực 30 ngày). Hết ân hạn, job bảo trì dữ liệu (mỗi giờ, khóa Redis) xóa email/ảnh/hồ sơ (`status = deleted`), bỏ phân công Manager và đổi tên trong lịch sử trận, danh sách người tham gia, báo cáo thành "Người chơi đã xóa"/"Người dùng đã xóa". Cùng job xóa nhật ký quản trị và nhật ký can thiệp quá 12 tháng.
+- **Hệ quả:** Cần văn bản chính sách quyền riêng tư và rà soát pháp lý trước phát hành (P8, BR-DATA-06).
 - **Liên quan:** BR-AV-03, mục 14.1.
 
 ### DL-009 – Chỉ tiêu phi chức năng phiên bản đầu
 
 - **Bối cảnh:** Đặc tả Q9.
-- **Quyết định:** Giữ chỉ tiêu mục 16 (≤ 300 ms đồng bộ, ≥ 200 phòng, ≥ 5.000 kết nối) và bổ sung: video ≤ 500 ms, ≥ 100 phòng có video, khôi phục trận ≤ 30 giây, sẵn sàng ≥ 99,5%/tháng. Nghiệm thu bằng kiểm thử tải.
+- **Quyết định (chốt 2026-11-19):** Giữ chỉ tiêu mục 16 (≤ 300 ms đồng bộ, ≥ 200 phòng, ≥ 5.000 kết nối) và bổ sung: video ≤ 500 ms, ≥ 100 phòng có video, khôi phục trận ≤ 30 giây, sẵn sàng ≥ 99,5%/tháng. Nghiệm thu bằng kiểm thử tải.
 - **Hệ quả:** Cần môi trường và kịch bản kiểm thử tải trước phát hành; quy mô hạ tầng phụ thuộc DL-023.
 - **Liên quan:** Mục 16, BR-NFR-01.
 
@@ -308,6 +314,34 @@
   - Lỗi SFU chỉ ghi log, không ném ra luồng phòng/trận (BR-AV-02); client hiện "không kết nối được video" và nút thử lại.
 - **Hệ quả:** Production cần LiveKit có TURN (TLS 443/UDP) cho mạng trường học, 4G, và `LIVEKIT_API_SECRET` thật (≥ 32 ký tự). Không ghi hình (BR-AV-03): không bật egress.
 
+### DL-047 – Kết quả theo câu được ghi khi rời vòng
+
+- **Bối cảnh:** Thống kê 9.4 và mục 14 cần đúng/sai/bỏ qua, thời gian trả lời, số lần giành quyền theo từng câu; trạng thái của plugin vòng bị thay khi chuyển vòng nên không đọc lại được sau trận. `match_answers` chỉ có gợi ý chấm tự động, không có kết quả Host chấm.
+- **Quyết định:** Mỗi plugin cài thêm `summary(state)` trả các câu đã hiển thị (bỏ câu chưa mở và câu bị hủy) kèm kết quả theo ghế. Engine phát hiệu ứng `round_summary` trước khi rời vòng và khi kết thúc trận (kể cả Host kết thúc sớm, kết thúc bất thường); runtime ghi `match_questions` (bản sao câu, môn/chủ đề) và `match_question_outcomes` trong cùng transaction. Từ khóa CNV: mỗi lần đoán được tính là giành quyền. Về đích: Player chính và người giành quyền đều có kết quả. Câu bị bỏ qua có Player đến lượt thì Player đó "bỏ qua". Tên phòng lúc thi được lưu vào `matches.room_name` để module Game không phải đọc bảng của Room Management.
+- **Hệ quả:** Trận đã chạy trước P7 không có thống kê theo câu. Thứ hạng: điểm giảm dần, người thắng câu hỏi phụ đứng trên người cùng điểm; trận bị hủy kết quả không tính vào thống kê.
+
+### DL-048 – Công bố đáp án sau trận
+
+- **Bối cảnh:** 9.4 "Hiển thị đáp án và giải thích (tùy Host bật)". Product Owner chọn ngày 2026-11-19.
+- **Quyết định:** Kịch bản có thiết lập "Công bố đáp án sau trận" (mặc định bật), được chép vào `matches.answers_public` khi trận kết thúc; Host bật/tắt lại cho từng trận ở trang tổng kết. Host và quản trị viên luôn xem được; Player và khán giả của phòng chỉ xem khi đang bật.
+
+### DL-049 – Cấu hình hệ thống sửa trên web
+
+- **Bối cảnh:** 15.1: Super Admin cấu hình giới hạn phòng, kích thước media, thời gian chờ, danh sách reaction. Product Owner chọn ngày 2026-11-19.
+- **Quyết định:** Bảng `system_settings` (một dòng mỗi khóa); giá trị mặc định lấy từ biến môi trường (`MAX_ACTIVE_ROOMS_PER_HOST`, `MAX_SPECTATORS_PER_ROOM`, `RECONNECT_GRACE_SECONDS`, `ROOM_IDLE_MINUTES`, `HOST_RECONNECT_MINUTES`) và đặc tả (ảnh 5 MB, video/âm thanh 50 MB, 4 reaction của mục 13). Giá trị nằm trong bộ nhớ để đọc đồng bộ; instance sửa áp dụng ngay, instance khác nạp lại sau tối đa 15 giây. Reaction chọn trong bảng 8 biểu tượng. Mỗi lần sửa ghi nhật ký quản trị. Giao diện đọc reaction và dung lượng media qua `GET /api/settings/public`.
+
+### DL-050 – Báo cáo vi phạm
+
+- **Bối cảnh:** 15.3; thiết kế Reports có thêm "Chặn phiên khách". Product Owner chọn ngày 2026-11-19.
+- **Quyết định:** Chỉ tài khoản gửi được báo cáo (BR-AUTH-06), tối đa 10 báo cáo/giờ. Đối tượng: phiên bản bộ public (người sở hữu bộ) hoặc người trong phòng (người báo cáo phải là Host hoặc đã ở trong phòng; bỏ trống = báo cáo Host). Cách xử lý: bỏ qua; gỡ nội dung (bộ public → `withdrawn`, phòng → đóng phòng, kết thúc trận nếu đang thi); cảnh báo (email + `users.warning_count`); chặn phiên khách (cấm khách khỏi phòng); khóa tài khoản (như quản lý người dùng). Báo cáo bộ public: mọi Manager xử lý (kiểm duyệt chung); báo cáo trong phòng: Manager của tổ chức người bị báo cáo (khách: tổ chức của Host), Super Admin xử lý tất cả. Cảnh báo/khóa phải nằm trong phạm vi quản lý (DL-005).
+
+### DL-051 – Chế độ giám sát phòng của Super Admin/Manager
+
+- **Bối cảnh:** BR-ROLE-04, 15.2 ("vào giám sát"); ma trận 2.2: giám sát xem video/nghe âm thanh, không gửi reaction. Canvas thiết kế không có màn riêng.
+- **Quyết định:** Super Admin giám sát mọi phòng; Manager giám sát phòng của Host là thành viên thuộc tổ chức mình quản lý (cùng phạm vi `/api/admin/rooms`). Vào bằng nút "Vào giám sát" ở `/quan-tri/phong`, mở `/phong/:roomId`; không cần mã phòng/mật khẩu và không tạo lượt tham gia. Nhân viên đã vào phòng làm Player/Spectator thì giữ vai trò đó. Người giám sát nhận bản trạng thái phòng và trận như khán giả (không thấy đáp án trước khi công bố, BR-RT-01); token video chỉ xem/nghe; không gửi reaction, không trả lời/bấm chuông/điều khiển. Người giám sát **không hiện** trong danh sách phòng hay số khán giả, không ghi trạng thái kết nối và không tính vào giới hạn khán giả. Thanh "Chế độ giám sát" có nút đóng phòng (cùng API đóng phòng vi phạm, ghi nhật ký quản trị).
+- **Hệ quả:** Host và người chơi không biết đang bị giám sát; nếu cần minh bạch có thể thêm dòng "Quản trị viên đang giám sát" cho Host sau. Việc vào giám sát chưa ghi nhật ký quản trị.
+- **Liên quan:** BR-ROLE-04, 2.2, 15.1, 15.2, DL-005, DL-026.
+
 ---
 
 ## 4. Quyết định công nghệ
@@ -323,8 +357,8 @@ Chi tiết lý do và phương án thay thế: [cong-nghe-su-dung.md](cong-nghe-
 | DL-020 | Zod, chia sẻ qua `packages/shared`                                                          | class-validator             | Điểm T3.                                        |
 | DL-021 | JWT ngắn hạn + refresh token xoay vòng trong cookie HttpOnly                                | Session lưu Redis           | Điểm T4. Chốt ngày 2026-11-18 trước P1.         |
 | DL-022 | Vitest cho frontend                                                                         | Jest                        | Điểm T5.                                        |
-| DL-023 | Nơi triển khai production                                                                   | VPS tự quản / cloud / Kubernetes | Điểm T6. Cần thông tin ngân sách và quy mô. |
-| DL-024 | Object storage và CDN production                                                            | –                           | Điểm T7. Phụ thuộc DL-023.                      |
+| DL-023 | Nơi triển khai production: **VPS + Docker Compose** (chốt 2026-11-19): api, web tĩnh, PostgreSQL, Redis, LiveKit (kèm TURN) trên 1–2 VPS gần người dùng (VN/Singapore), Caddy/Nginx cấp HTTPS; sao lưu PostgreSQL định kỳ ra object storage. | Cloud có dịch vụ quản lý, Kubernetes (chưa cần ở quy mô bản đầu) | Mở rộng ngang về sau: thêm instance api sau load balancer (Socket.IO Redis adapter, DL-013 đã hỗ trợ). |
+| DL-024 | Object storage và CDN production: **dịch vụ S3-compatible thuê ngoài** (ưu tiên Cloudflare R2 – không tính phí tải xuống; hoặc S3/Spaces) kèm CDN, chốt 2026-11-19. Chỉ đổi biến môi trường `S3_*`. | Tự host SeaweedFS | Cần cấu hình CORS cho upload presigned từ domain web. |
 | DL-025 | Object storage S3-compatible cho dev: **SeaweedFS** (chốt ngày 2026-11-18 khi làm P2). MinIO không còn phát hành Docker image cộng đồng. | Garage, LocalStack | Production chờ DL-024. |
 
 ---

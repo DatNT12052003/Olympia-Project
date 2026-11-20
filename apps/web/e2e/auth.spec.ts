@@ -60,7 +60,7 @@ test('đăng nhập sai báo lỗi, đúng thì vào trang tài khoản', async 
   await page.getByLabel('Mật khẩu').fill('Mat-khau-123');
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
 
-  await expect(page.getByRole('heading', { name: 'Tài khoản' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tài khoản', exact: true })).toBeVisible();
   await expect(page.getByText('Email chưa được xác minh.')).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Tài khoản' })).toContainText('Nguyễn An');
   await expectNoHorizontalOverflow(page);

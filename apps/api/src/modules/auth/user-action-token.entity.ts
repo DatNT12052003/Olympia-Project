@@ -1,6 +1,6 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
-export type UserActionPurpose = 'email_verification' | 'password_reset';
+export type UserActionPurpose = 'email_verification' | 'password_reset' | 'cancel_deletion';
 
 /** Token một lần gửi qua email: xác minh email, đặt lại mật khẩu. */
 @Entity({ name: 'user_action_tokens' })

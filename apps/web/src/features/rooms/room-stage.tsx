@@ -1,4 +1,4 @@
-import { REACTIONS } from '@olympia/shared';
+import { usePublicSettings } from '../system/use-public-settings';
 import { type ReactNode, useEffect, useState } from 'react';
 import { WifiOffIcon } from '../../components/icons';
 import type { FloatingReaction } from './use-room-channel';
@@ -65,6 +65,7 @@ export function ReactionBar({
   onSend: (emoji: string) => Promise<string | null>;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const { reactions } = usePublicSettings();
 
   if (!enabled) {
     return <p className="text-[13px] text-stage-200">Host đã tắt gửi cảm xúc trong phòng này.</p>;
@@ -73,7 +74,7 @@ export function ReactionBar({
   return (
     <div className="flex flex-col gap-1.5">
       <div role="group" aria-label="Gửi cảm xúc" className="flex gap-2">
-        {REACTIONS.map((emoji) => (
+        {reactions.map((emoji) => (
           <button
             key={emoji}
             type="button"

@@ -38,6 +38,7 @@ import {
 } from '../../features/question-bank/qb-format';
 import { errorMessage } from '../../lib/api-client';
 import { apiFieldErrors, type FieldErrors } from '../../lib/form-errors';
+import { usePublicSettings } from '../../features/system/use-public-settings';
 
 interface FormState {
   answerType: AnswerType;
@@ -147,6 +148,10 @@ function toInput(form: FormState) {
 }
 
 /** Dung lượng dễ đọc: KB cho tệp nhỏ, MB cho tệp lớn. */
+function toMb(bytes: number): number {
+  return Math.round(bytes / (1024 * 1024));
+}
+
 function formatSize(bytes: number): string {
   return bytes < 1024 * 1024
     ? `${Math.max(1, Math.round(bytes / 1024))} KB`
@@ -184,11 +189,12 @@ function MediaPicker({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const { mediaMaxBytes } = usePublicSettings();
 
   async function handle(file: File | undefined) {
     if (!file) return;
     setError(null);
-    const problem = mediaProblem(file);
+    const problem = mediaProblem(file, mediaMaxBytes);
     if (problem) {
       setError(problem);
       return;
@@ -265,7 +271,7 @@ function MediaPicker({
         <span className="flex-[1_1_240px] text-sm text-slate-600">
           {uploading
             ? 'Đang tải tệp lên…'
-            : 'Kéo thả hình ảnh, video hoặc âm thanh vào đây. Ảnh ≤ 5 MB (JPG, PNG, WEBP), video/âm thanh ≤ 50 MB (MP4, MP3).'}
+            : `Kéo thả hình ảnh, video hoặc âm thanh vào đây. Ảnh ≤ ${toMb(mediaMaxBytes.image)} MB (JPG, PNG, WEBP), video ≤ ${toMb(mediaMaxBytes.video)} MB (MP4), âm thanh ≤ ${toMb(mediaMaxBytes.audio)} MB (MP3).`}
         </span>
         <Button
           variant="secondary"

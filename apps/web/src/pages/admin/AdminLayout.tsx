@@ -1,13 +1,13 @@
 import { Link, NavLink, Outlet } from 'react-router';
 import { Wordmark } from '../../components/Card';
-import { useOrganizations } from '../../features/admin/admin-api';
+import { useOrganizations, useReports } from '../../features/admin/admin-api';
 import { useReviewQueue } from '../../features/question-bank/qb-api';
 import { useAuth } from '../../features/auth/use-auth';
 
 /**
  * Khung trang quản trị theo thiết kế (màn UserManagement): sidebar navy bên trái, nội dung bên
- * phải; trên mobile sidebar thành thanh điều hướng phía trên. Các mục Báo cáo vi phạm, Phòng đang
- * hoạt động (P7) sẽ thêm khi có chức năng.
+ * phải; trên mobile sidebar thành thanh điều hướng phía trên. Nhật ký và Cấu hình hệ thống chỉ
+ * dành cho Super Admin.
  */
 const itemClass = ({ isActive }: { isActive: boolean }) =>
   `flex min-h-11 items-center rounded-lg px-3 text-[15px] no-underline hover:no-underline ${
@@ -28,6 +28,8 @@ export function AdminLayout() {
   const { user } = useAuth();
   const scope = useScopeLabel();
   const pendingReviews = useReviewQueue().data?.length ?? 0;
+  const openReports = useReports('open').data?.openCount ?? 0;
+  const isSuperAdmin = user?.systemRole === 'super_admin';
 
   return (
     <div className="flex min-h-dvh flex-col bg-canvas text-slate-900 lg:flex-row">
@@ -59,6 +61,30 @@ export function AdminLayout() {
               </span>
             )}
           </NavLink>
+          <NavLink to="/quan-tri/bao-cao" className={itemClass}>
+            <span className="flex-1">Báo cáo vi phạm</span>
+            {openReports > 0 && (
+              <span
+                aria-label={`${openReports} báo cáo chờ xử lý`}
+                className="ml-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-accent-400 px-1.5 text-xs font-extrabold text-stage-900"
+              >
+                {openReports}
+              </span>
+            )}
+          </NavLink>
+          <NavLink to="/quan-tri/phong" className={itemClass}>
+            Phòng đang hoạt động
+          </NavLink>
+          {isSuperAdmin && (
+            <>
+              <NavLink to="/quan-tri/nhat-ky" className={itemClass}>
+                Nhật ký quản trị
+              </NavLink>
+              <NavLink to="/quan-tri/cau-hinh" className={itemClass}>
+                Cấu hình hệ thống
+              </NavLink>
+            </>
+          )}
         </div>
         <div className="mx-2 hidden flex-col gap-1 border-t border-stage-800 pt-4 text-sm lg:mt-auto lg:flex">
           <Link to="/tai-khoan" className="truncate text-stage-200 hover:text-white">

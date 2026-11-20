@@ -8,6 +8,7 @@ import { ChevronLeftIcon } from '../../components/icons';
 import { QuestionSummary } from '../../features/question-bank/QuestionSummary';
 import { useCopyPublicSet, usePublicSet } from '../../features/question-bank/qb-api';
 import { formatDate, ROUND_LABELS } from '../../features/question-bank/qb-format';
+import { ReportDialog } from '../../features/reports/ReportDialog';
 import { errorMessage } from '../../lib/api-client';
 
 const GROUPS: (RoundKey | null)[] = [...ROUND_KEYS, null];
@@ -19,6 +20,7 @@ export function PublicSetPage() {
   const set = usePublicSet(versionId);
   const copy = useCopyPublicSet();
   const [error, setError] = useState<string | null>(null);
+  const [reporting, setReporting] = useState(false);
 
   if (set.isPending) return <Spinner />;
   if (set.isError) return <Alert tone="error">{errorMessage(set.error)}</Alert>;
@@ -50,21 +52,32 @@ export function PublicSetPage() {
           )}
         </div>
         {!data.mine && (
-          <Button
-            loading={copy.isPending}
-            loadingText="Đang sao chép…"
-            onClick={() => {
-              setError(null);
-              copy.mutate(data.versionId, {
-                onSuccess: (result) => void navigate(`/ngan-hang/bo-de/${result.setId}`),
-                onError: (err) => setError(errorMessage(err)),
-              });
-            }}
-          >
-            Sao chép về ngân hàng
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => setReporting(true)}>
+              Báo cáo vi phạm
+            </Button>
+            <Button
+              loading={copy.isPending}
+              loadingText="Đang sao chép…"
+              onClick={() => {
+                setError(null);
+                copy.mutate(data.versionId, {
+                  onSuccess: (result) => void navigate(`/ngan-hang/bo-de/${result.setId}`),
+                  onError: (err) => setError(errorMessage(err)),
+                });
+              }}
+            >
+              Sao chép về ngân hàng
+            </Button>
+          </div>
         )}
       </header>
+      {reporting && (
+        <ReportDialog
+          target={{ kind: 'question_set_version', versionId: data.versionId, label: data.name }}
+          onClose={() => setReporting(false)}
+        />
+      )}
       <p className="text-sm text-slate-600">
         Bản sao thuộc về bạn: sửa thoải mái, thay đổi của bản gốc không ảnh hưởng bản sao.
       </p>

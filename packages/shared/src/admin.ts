@@ -11,7 +11,7 @@ export const AdminErrorCode = {
   OrganizationNameTaken: 'ORGANIZATION_NAME_TAKEN',
 } as const;
 
-export const userStatusSchema = z.enum(['active', 'locked']);
+export const userStatusSchema = z.enum(['active', 'locked', 'pending_deletion', 'deleted']);
 export type UserStatus = z.infer<typeof userStatusSchema>;
 
 export const ADMIN_PAGE_SIZE_MAX = 100;
@@ -37,6 +37,10 @@ export const adminUserSchema = z.object({
   status: userStatusSchema,
   lockedAt: z.iso.datetime().nullable(),
   lockedReason: z.string().nullable(),
+  /** Thời điểm người dùng yêu cầu xóa tài khoản (DL-008). */
+  deletionRequestedAt: z.iso.datetime().nullable(),
+  /** Số lần bị cảnh báo khi xử lý báo cáo vi phạm (DL-050). */
+  warningCount: z.number().int(),
   organizationId: z.uuid().nullable(),
   createdAt: z.iso.datetime(),
   /** Lần gần nhất tài khoản đăng nhập hoặc làm mới phiên; `null` nếu chưa đăng nhập. */
@@ -88,3 +92,81 @@ export const organizationSchema = z.object({
 export type Organization = z.infer<typeof organizationSchema>;
 
 export const organizationListSchema = z.object({ items: z.array(organizationSchema) });
+
+// --- Giám sát phòng (15.1, 15.2) ---
+
+export const adminRoomSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  code: z.string().nullable(),
+  status: z.enum(['open', 'in_match']),
+  visibility: z.enum(['public', 'private']),
+  hostId: z.uuid(),
+  hostName: z.string(),
+  organizationName: z.string().nullable(),
+  playerCount: z.number().int(),
+  spectatorCount: z.number().int(),
+  openedAt: z.iso.datetime().nullable(),
+});
+export type AdminRoom = z.infer<typeof adminRoomSchema>;
+
+export const adminRoomListSchema = z.object({ items: z.array(adminRoomSchema) });
+export type AdminRoomList = z.infer<typeof adminRoomListSchema>;
+
+export const closeRoomRequestSchema = z.object({
+  reason: z.string().trim().min(1, 'Cần nhập lý do đóng phòng.').max(500),
+});
+export type CloseRoomRequest = z.input<typeof closeRoomRequestSchema>;
+
+// --- Nhật ký quản trị (15.1, BR-DATA-05) ---
+
+export const auditLogQuerySchema = z.object({
+  /** Lọc theo nhóm hành động (tiền tố trước dấu chấm, ví dụ `user`, `match`). */
+  category: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().trim().max(32).optional(),
+  ),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(ADMIN_PAGE_SIZE_MAX).default(50),
+});
+export type AuditLogQuery = z.input<typeof auditLogQuerySchema>;
+
+export const auditLogEntrySchema = z.object({
+  id: z.string(),
+  action: z.string(),
+  actorName: z.string().nullable(),
+  targetType: z.string(),
+  targetId: z.uuid().nullable(),
+  details: z.record(z.string(), z.unknown()),
+  createdAt: z.iso.datetime(),
+});
+export type AuditLogEntry = z.infer<typeof auditLogEntrySchema>;
+
+export const auditLogListSchema = z.object({
+  items: z.array(auditLogEntrySchema),
+  page: z.number().int(),
+  pageSize: z.number().int(),
+  total: z.number().int(),
+});
+export type AuditLogList = z.infer<typeof auditLogListSchema>;
+
+/** Tên hiển thị của các hành động quản trị. */
+export const AUDIT_ACTION_LABELS: Record<string, string> = {
+  'user.lock': 'Khóa tài khoản',
+  'user.unlock': 'Mở khóa tài khoản',
+  'user.update': 'Cập nhật vai trò/tổ chức',
+  'user.password_reset_requested': 'Gửi email đặt lại mật khẩu',
+  'user.verification_email_sent': 'Gửi lại email xác minh',
+  'user.warn': 'Cảnh báo người dùng',
+  'organization.create': 'Tạo tổ chức',
+  'organization.rename': 'Đổi tên tổ chức',
+  'organization.manager_add': 'Gán Manager',
+  'organization.manager_remove': 'Bỏ Manager',
+  'question_set.approve': 'Duyệt bộ public',
+  'question_set.reject': 'Từ chối bộ public',
+  'question_set.takedown': 'Gỡ bộ public',
+  'match.void': 'Hủy kết quả trận',
+  'room.close': 'Đóng phòng vi phạm',
+  'report.resolve': 'Xử lý báo cáo vi phạm',
+  'system.settings_update': 'Cập nhật cấu hình hệ thống',
+};

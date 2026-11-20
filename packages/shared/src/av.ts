@@ -25,7 +25,7 @@ export type AvTokenResponse = z.infer<typeof avTokenResponseSchema>;
 
 /** Metadata gắn với người tham gia LiveKit, để client ghép video với ghế trong phòng. */
 export const avParticipantMetadataSchema = z.object({
-  role: z.enum(['host', 'player', 'spectator']),
+  role: z.enum(['host', 'player', 'spectator', 'monitor']),
   /** Id người tham gia phòng (`null` với Host). */
   participantId: z.uuid().nullable(),
 });

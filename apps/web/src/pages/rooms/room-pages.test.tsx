@@ -8,7 +8,13 @@ import type {
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { errorResponse, mockApi, sessionResponse, withStoredSession } from '../../test/mock-api';
+import {
+  errorResponse,
+  makeUser,
+  mockApi,
+  sessionResponse,
+  withStoredSession,
+} from '../../test/mock-api';
 import { lastSocket, mockSocketServer, serverPush } from '../../test/mock-socket';
 import { jsonResponse, renderApp } from '../../test/render';
 
@@ -307,6 +313,44 @@ describe('Sảnh chờ', () => {
       event: 'room:subscribe',
       payload: { roomId: ROOM_ID },
     });
+  });
+
+  it('Super Admin giám sát: không có lượt tham gia, không gửi cảm xúc, đóng phòng có lý do', async () => {
+    withStoredSession();
+    const { requests } = mockApi({
+      'POST /auth/refresh': () =>
+        jsonResponse(sessionResponse(makeUser({ systemRole: 'super_admin' }))),
+      [`POST /admin/rooms/${ROOM_ID}/close`]: () => new Response(null, { status: 204 }),
+    });
+    mockSocketServer({
+      'room:subscribe': (_payload, ack) =>
+        ack?.({ ok: true, data: { ...roomState(), monitor: true } }),
+    });
+    renderApp(`/phong/${ROOM_ID}`);
+
+    expect(await screen.findByText('Chế độ giám sát')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Lớp 12A1 – Ôn thi học kỳ' })).toBeInTheDocument();
+    expect(screen.getByRole('article', { name: 'Vị trí 1: Minh Anh' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Rời phòng/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Cảm xúc' })).not.toBeInTheDocument();
+    expect(requests.some((r) => r.path === `/rooms/${ROOM_ID}/me`)).toBe(false);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Đóng phòng' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText('Lý do đóng phòng'), 'Nội dung vi phạm');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Đóng phòng' }));
+    await waitFor(() =>
+      expect(requests.find((r) => r.path === `/admin/rooms/${ROOM_ID}/close`)?.body).toEqual({
+        reason: 'Nội dung vi phạm',
+      }),
+    );
+
+    serverPush('room:removed', { roomId: ROOM_ID, reason: 'closed' });
+    expect(await screen.findByRole('heading', { name: 'Phòng đã đóng' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Về trang quản trị' })).toHaveAttribute(
+      'href',
+      '/quan-tri/phong',
+    );
   });
 
   it('báo chưa vào phòng khi server từ chối theo dõi phòng', async () => {

@@ -22,10 +22,19 @@ export interface RoomReaction {
   from: { displayName: string; seat: number | null };
 }
 
+/**
+ * Kết quả theo dõi phòng. `monitor`: Super Admin/Manager đang giám sát (BR-ROLE-04) – nhận bản
+ * như khán giả, không phải người tham gia phòng nên không có lượt tham gia (`/me`).
+ */
+export type RoomSubscription = RoomState & { monitor?: boolean };
+
 export interface ClientToServerEvents {
   'system:ping': (ack: (response: ServerTimeAck) => void) => void;
   /** Theo dõi phòng: nhận ngay trạng thái hiện tại; đánh dấu online (BR-RC-02, BR-RC-05). */
-  'room:subscribe': (payload: { roomId: string }, ack: (result: Ack<RoomState>) => void) => void;
+  'room:subscribe': (
+    payload: { roomId: string },
+    ack: (result: Ack<RoomSubscription>) => void,
+  ) => void;
   'room:unsubscribe': (payload: { roomId: string }) => void;
   'reaction:send': (payload: { roomId: string; emoji: string }, ack: (result: Ack) => void) => void;
   /** Trạng thái trận hiện tại của phòng (`null` khi không có trận), dùng khi kết nối lại (BR-RC-02). */

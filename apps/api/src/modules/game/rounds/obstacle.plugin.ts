@@ -12,7 +12,7 @@ import {
   type SeatAnswerView,
 } from '@olympia/shared';
 import { BadRequestError } from '../../../shared/errors/app-error';
-import type { MatchQuestion } from '../engine/match-state';
+import type { MatchQuestion, QuestionSummary } from '../engine/match-state';
 import {
   autoDelays,
   MatchRuleError,
@@ -26,6 +26,8 @@ import {
   assertRef,
   FINAL_PHASES,
   isDefinitive,
+  isSummarized,
+  outcomesOf,
   questionView,
   type SeatEntry,
   suggest,
@@ -658,6 +660,33 @@ export const obstaclePlugin: RoundPlugin<ObstacleState> = {
 
   spare(state) {
     return state.extra;
+  },
+
+  summary(state) {
+    const items: QuestionSummary[] = state.cells
+      .filter((cell) => isSummarized(cell.phase))
+      .map((cell) => ({
+        ref: cell.ref,
+        question: cell.question,
+        outcomes: outcomesOf(cell.results, cell.answers),
+      }));
+    // Từ khóa: mỗi lần bấm chuông đoán là một lần giành quyền; đoán sai bị loại khỏi vòng.
+    const judged = state.guesses.filter((g) => g.state === 'correct' || g.state === 'wrong');
+    if (judged.length > 0) {
+      items.push({
+        ref: state.keywordRef,
+        question: state.keyword,
+        outcomes: judged
+          .map((g) => ({
+            seat: g.seat,
+            result: g.state === 'correct' ? ('correct' as const) : ('wrong' as const),
+            elapsedMs: null,
+            buzzWon: true,
+          }))
+          .sort((a, b) => a.seat - b.seat),
+      });
+    }
+    return items;
   },
 
   mediaIds(state) {

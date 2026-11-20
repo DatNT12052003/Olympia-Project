@@ -1,8 +1,9 @@
 import { Link, NavLink, Outlet } from 'react-router';
 import { Wordmark } from '../../components/Card';
-import { BookIcon, ListIcon, MonitorIcon } from '../../components/icons';
+import { SystemPermission } from '@olympia/shared';
+import { BookIcon, ClockIcon, ListIcon, MonitorIcon } from '../../components/icons';
 import { roleLabel } from '../../features/auth/role-labels';
-import { useAuth } from '../../features/auth/use-auth';
+import { useAuth, userHasPermission } from '../../features/auth/use-auth';
 import { initials } from '../../features/rooms/room-format';
 
 const itemClass = ({ isActive }: { isActive: boolean }) =>
@@ -14,10 +15,11 @@ const itemClass = ({ isActive }: { isActive: boolean }) =>
 
 /**
  * Khung trang Host theo thiết kế (màn HostDashboard, QuestionBank): sidebar navy, nội dung nền
- * sáng. Lịch sử trận sẽ thêm vào sidebar khi có chức năng (P7).
+ * sáng. Người không có quyền Host (chỉ thi) chỉ thấy Lịch sử trận.
  */
 export function HostLayout() {
   const { user } = useAuth();
+  const canHost = userHasPermission(user, SystemPermission.CreateRooms);
 
   return (
     <div className="flex min-h-dvh flex-col bg-canvas text-slate-900 lg:flex-row">
@@ -29,27 +31,39 @@ export function HostLayout() {
           <Wordmark className="text-xl" />
         </Link>
         <div className="flex gap-1 overflow-x-auto lg:flex-col">
-          <NavLink to="/phong-thi" end className={itemClass}>
+          {canHost && (
+            <>
+              <NavLink to="/phong-thi" end className={itemClass}>
+                {({ isActive }) => (
+                  <>
+                    <MonitorIcon size={20} className={isActive ? 'text-accent-400' : ''} />
+                    Phòng thi
+                  </>
+                )}
+              </NavLink>
+              <NavLink to="/ngan-hang" className={itemClass}>
+                {({ isActive }) => (
+                  <>
+                    <BookIcon size={20} className={isActive ? 'text-accent-400' : ''} />
+                    Ngân hàng câu hỏi
+                  </>
+                )}
+              </NavLink>
+              <NavLink to="/kich-ban" className={itemClass}>
+                {({ isActive }) => (
+                  <>
+                    <ListIcon size={20} className={isActive ? 'text-accent-400' : ''} />
+                    Kịch bản
+                  </>
+                )}
+              </NavLink>
+            </>
+          )}
+          <NavLink to="/lich-su" className={itemClass}>
             {({ isActive }) => (
               <>
-                <MonitorIcon size={20} className={isActive ? 'text-accent-400' : ''} />
-                Phòng thi
-              </>
-            )}
-          </NavLink>
-          <NavLink to="/ngan-hang" className={itemClass}>
-            {({ isActive }) => (
-              <>
-                <BookIcon size={20} className={isActive ? 'text-accent-400' : ''} />
-                Ngân hàng câu hỏi
-              </>
-            )}
-          </NavLink>
-          <NavLink to="/kich-ban" className={itemClass}>
-            {({ isActive }) => (
-              <>
-                <ListIcon size={20} className={isActive ? 'text-accent-400' : ''} />
-                Kịch bản
+                <ClockIcon size={20} className={isActive ? 'text-accent-400' : ''} />
+                Lịch sử trận
               </>
             )}
           </NavLink>

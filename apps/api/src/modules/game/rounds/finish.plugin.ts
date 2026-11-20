@@ -23,6 +23,8 @@ import {
   assertRef,
   FINAL_PHASES,
   isDefinitive,
+  isSummarized,
+  outcomesOf,
   questionView,
   type SeatEntry,
   signed,
@@ -686,6 +688,26 @@ export const finishPlugin: RoundPlugin<FinishState> = {
     return Object.values(state.pools)
       .flat()
       .map((ref) => state.questions[ref]!.question);
+  },
+
+  summary(state) {
+    return Object.values(state.questions)
+      .filter((q) => isSummarized(q.phase))
+      .map((q) => {
+        const results: Record<string, 'correct' | 'wrong' | 'skipped'> = {};
+        if (q.mainSeat !== null && q.mainResult) results[String(q.mainSeat)] = q.mainResult;
+        if (q.steal) results[String(q.steal.seat)] = q.steal.correct ? 'correct' : 'wrong';
+        return {
+          ref: q.ref,
+          question: q.question,
+          outcomes: outcomesOf(
+            results,
+            q.answers,
+            q.steal ? [q.steal.seat] : [],
+            q.mainSeat !== null ? [q.mainSeat] : [],
+          ),
+        };
+      });
   },
 
   mediaIds(state) {
