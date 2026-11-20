@@ -1,0 +1,19 @@
+# Web tĩnh + reverse proxy Caddy (HTTPS tự động). Build từ thư mục gốc repo:
+#   docker build -f deploy/Dockerfile.web --build-arg VITE_RELEASE=$(git rev-parse --short HEAD) -t olympia-web .
+FROM node:24-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY packages/shared/package.json packages/shared/
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+RUN npm ci --ignore-scripts
+COPY tsconfig.base.json ./
+COPY packages/shared packages/shared
+COPY apps/web apps/web
+ARG VITE_RELEASE=dev
+ENV VITE_RELEASE=$VITE_RELEASE
+RUN npm run build -w @olympia/shared && npm run build -w @olympia/web
+
+FROM caddy:2.10-alpine
+COPY deploy/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/apps/web/dist /srv/web

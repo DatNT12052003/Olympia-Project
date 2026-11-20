@@ -1,0 +1,98 @@
+@import 'tailwindcss';
+
+/*
+ * Token theo thiết kế: canvas "Olympia Online – Bộ màn hình", màn Main (nền tảng giao diện).
+ * Màn quản lý: nền sáng canvas, nút chính brand-600. Màn thi đấu: nền "sân khấu" stage-900,
+ * điểm nhấn accent-400. Màu chữ/viền/trạng thái dùng thang slate, green, orange, amber, red của
+ * Tailwind (trùng mã màu trong thiết kế).
+ */
+@theme {
+  --font-sans: 'Be Vietnam Pro', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --color-canvas: #f6f7fb;
+
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-600: #2547c9;
+  --color-brand-700: #1d3aa6;
+
+  --color-stage-200: #c7d2f0;
+  --color-stage-700: #2a4385;
+  --color-stage-800: #13285e;
+  --color-stage-900: #0a1a3f;
+
+  --color-accent-400: #f5b82e;
+  --color-accent-500: #e0a11a;
+
+  /* Màu 4 vị trí thi, luôn đi kèm số ghế và tên. */
+  --color-seat-1: #f5b82e;
+  --color-seat-2: #38bdf8;
+  --color-seat-3: #f472b6;
+  --color-seat-4: #a3e635;
+
+  /* Ô nhập và nút bo 10px, thẻ bo 16px (rounded-2xl mặc định). */
+  --radius-lg: 0.625rem;
+
+  /* Cảm xúc nổi lên trong phòng thi (mục 13). */
+  --animate-reaction: reaction-float 2.6s ease-out forwards;
+
+  /* Hiệu ứng trận (11.4): nháy kết quả, pháo giấy khi kết thúc trận. */
+  --animate-result-flash: result-flash 0.9s ease-out forwards;
+  --animate-confetti: confetti-fall 2.8s linear forwards;
+
+  @keyframes result-flash {
+    0% {
+      opacity: 0;
+    }
+    15% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes confetti-fall {
+    0% {
+      opacity: 1;
+      transform: translateY(-10vh) rotate(0deg);
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(105vh) rotate(720deg);
+    }
+  }
+
+  @keyframes reaction-float {
+    0% {
+      opacity: 0;
+      transform: translateY(0) scale(0.7);
+    }
+    12% {
+      opacity: 1;
+      transform: translateY(-16px) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-260px) scale(1);
+    }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-slate-900 antialiased;
+  }
+
+  a {
+    @apply text-brand-600 hover:text-brand-700;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-600;
+  }
+}

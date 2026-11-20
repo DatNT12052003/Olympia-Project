@@ -3,6 +3,8 @@
 > Kế hoạch triển khai phiên bản đầu của Olympia Online.
 >
 > Tài liệu liên quan: [Đặc tả nghiệp vụ](dac-ta-nghiep-vu-olympia.md) · [Công nghệ sử dụng](cong-nghe-su-dung.md) · [Decision log](decision-log.md)
+>
+> **Thiết kế giao diện:** canvas [Olympia Online – Bộ màn hình](https://claude.ai/artifact/HKmpC4F1bxyket69iq7Yw8). Mỗi màn hình trong canvas ghi rõ giai đoạn (P1…P7); khi làm giao diện của một giai đoạn, đọc các màn tương ứng và màn `Main` (nền tảng giao diện: font, màu, nút, ô nhập) rồi làm theo. Màn chưa có thiết kế thì theo `Main`.
 
 ---
 
@@ -31,17 +33,19 @@ Nếu quy mô nhóm khác, cần ước lượng lại thời lượng ở mục
 
 ## 2. Tổng quan các giai đoạn
 
-| Giai đoạn | Nội dung                                   | Thời lượng ước lượng | Phụ thuộc   | Mốc         |
-| --------- | ------------------------------------------ | :------------------: | ----------- | ----------- |
-| P0        | Khởi tạo nền tảng                          | 1–2 tuần             | –           |             |
-| P1        | Tài khoản, xác thực, phân quyền            | 2 tuần               | P0          |             |
-| P2        | Ngân hàng câu hỏi và bộ đề                 | 2 tuần               | P1          |             |
-| P3        | Phòng thi và realtime nền                  | 2 tuần               | P1          | **M1**      |
-| P4        | Game Engine lõi, kịch bản, vòng Khởi động  | 3 tuần               | P2, P3      | **M2**      |
-| P5        | Ba vòng còn lại, chế độ tự động            | 3 tuần               | P4          |             |
-| P6        | Video call và voice chat                   | 2 tuần               | P3          | **M3** (cùng P5) |
-| P7        | Kết quả, lịch sử, thống kê, quản trị       | 2 tuần               | P4          |             |
-| P8        | Hoàn thiện, kiểm thử tải, nghiệm thu, phát hành | 2 tuần          | P5, P6, P7  | **M4**      |
+| Giai đoạn | Nội dung                                   | Thời lượng ước lượng | Phụ thuộc   | Mốc         | Trạng thái |
+| --------- | ------------------------------------------ | :------------------: | ----------- | ----------- | ---------- |
+| P0        | Khởi tạo nền tảng                          | 1–2 tuần             | –           |             | Đã xong |
+| P1        | Tài khoản, xác thực, phân quyền            | 2 tuần               | P0          |             | Đã xong |
+| P2        | Ngân hàng câu hỏi và bộ đề                 | 2 tuần               | P1          |             | Đã xong |
+| P3        | Phòng thi và realtime nền                  | 2 tuần               | P1          | **M1**      | Đã xong |
+| P4        | Game Engine lõi, kịch bản, vòng Khởi động  | 3 tuần               | P2, P3      | **M2**      | Đã xong |
+| P5        | Ba vòng còn lại, chế độ tự động            | 3 tuần               | P4          |             | Đã xong |
+| P6        | Video call và voice chat                   | 2 tuần               | P3          | **M3** (cùng P5) | Đã code, chờ review/merge; chưa thử video trên staging/4G |
+| P7        | Kết quả, lịch sử, thống kê, quản trị       | 2 tuần               | P4          |             | Đã code (kể cả chế độ "vào giám sát" phòng, DL-051), E2E Playwright hiện có chạy xanh; chờ review/merge |
+| P8        | Hoàn thiện, kiểm thử tải, nghiệm thu, phát hành | 2 tuần          | P5, P6, P7  | **M4**      | Đã code (review bảo mật, âm thanh/hiệu ứng, E2E trận đầy đủ, công cụ tải/khôi phục, bộ triển khai + giám sát); chờ staging: tải quy mô đầy đủ, video 4G, thiết bị thật, rà soát pháp lý – xem [nghiem-thu-p8.md](nghiem-thu-p8.md) |
+
+> **Theo dõi tiến độ:** cập nhật cột "Trạng thái" mỗi khi một giai đoạn xong (merge vào `develop`) hoặc có phần chưa đạt tiêu chí. Cập nhật lần cuối: 2026-11-20.
 
 **Tổng:** khoảng 19–20 tuần nếu làm tuần tự; khoảng **13–14 tuần** khi chạy song song P2 ∥ P3, P6 ∥ P4, P7 ∥ P5. Nên dự phòng thêm 2–3 tuần cho phát sinh, tức mục tiêu thực tế **15–17 tuần**.
 
@@ -75,11 +79,11 @@ Mỗi hạng mục trong một giai đoạn chỉ được coi là xong khi: có
 
 ### P0 – Khởi tạo nền tảng (1–2 tuần)
 
-**Điều kiện bắt đầu:** chốt DL-018 → DL-022.
+**Điều kiện bắt đầu:** chốt DL-018, DL-020, DL-022.
 
 - Monorepo npm workspaces: `apps/api`, `apps/web`, `packages/shared`.
 - TypeScript strict, ESLint, Prettier, cấu hình test (Jest, Vitest, Playwright).
-- Docker Compose: PostgreSQL, Redis, MinIO, LiveKit, Mailpit.
+- Docker Compose: PostgreSQL, Redis, LiveKit, Mailpit (object storage chuyển sang P2, xem DL-025).
 - Khung `apps/api`: Express, phân lớp, xử lý lỗi tập trung, logging Pino, cấu hình theo env, healthcheck, migration TypeORM đầu tiên.
 - Khung `apps/web`: Vite, Tailwind, React Router, TanStack Query, layout responsive cơ bản.
 - Khung realtime: Socket.IO gateway có xác thực, Redis adapter.
@@ -180,13 +184,13 @@ Mỗi hạng mục trong một giai đoạn chỉ được coi là xong khi: có
 
 | Hạn chốt         | Quyết định                                    |
 | ---------------- | --------------------------------------------- |
-| Trước P0         | DL-018 → DL-022 (công nghệ)                   |
-| Trước P1         | DL-001, DL-002, DL-005 (khách, Host, tổ chức) |
-| Trước P2         | DL-006 (kiểm duyệt public)                    |
+| Trước P0         | DL-018, DL-020, DL-022 (đã chốt 2026-11-18)   |
+| Trước P1         | DL-001, DL-002, DL-005 (khách, Host, tổ chức), DL-021 (xác thực) |
+| Trước P2         | DL-006 (kiểm duyệt public), DL-025 (object storage dev) |
 | Trước P4         | DL-003, DL-004, DL-013                         |
 | Trước P6         | DL-007, DL-019                                 |
-| Trước P7         | DL-008                                         |
-| Trước P8         | DL-009, DL-023, DL-024                         |
+| Trước P7         | DL-008 (đã chốt 2026-11-19)                    |
+| Trước P8         | DL-009, DL-023, DL-024 (đã chốt 2026-11-19)    |
 
 ---
 

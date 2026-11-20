@@ -1,0 +1,29 @@
+# API Olympia Online (production). Build từ thư mục gốc repo:
+#   docker build -f deploy/Dockerfile.api -t olympia-api .
+FROM node:24-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY packages/shared/package.json packages/shared/
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+RUN npm ci --ignore-scripts
+COPY tsconfig.base.json ./
+COPY packages/shared packages/shared
+COPY apps/api apps/api
+RUN npm run build -w @olympia/shared && npm run build -w @olympia/api \
+  && npm prune --omit=dev --ignore-scripts
+
+FROM node:24-alpine
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=build /app/node_modules node_modules
+COPY --from=build /app/packages/shared/package.json packages/shared/
+COPY --from=build /app/packages/shared/dist packages/shared/dist
+COPY --from=build /app/apps/api/package.json apps/api/
+COPY --from=build /app/apps/api/dist apps/api/dist
+WORKDIR /app/apps/api
+USER node
+EXPOSE 3000 9464
+HEALTHCHECK --interval=15s --timeout=3s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/api/health/live >/dev/null || exit 1
+CMD ["node", "dist/main.js"]

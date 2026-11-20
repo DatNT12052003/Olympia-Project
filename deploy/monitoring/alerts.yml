@@ -1,0 +1,37 @@
+# Cảnh báo theo chỉ tiêu mục 16 (DL-009). Xem trong Grafana (Alerting) hoặc Prometheus /alerts;
+# gửi thông báo (email/Telegram) cấu hình ở Grafana Contact points (docs/van-hanh.md).
+groups:
+  - name: olympia
+    rules:
+      - alert: ApiDown
+        expr: up{job="olympia-api"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: 'Instance API {{ $labels.instance }} không phản hồi metrics'
+      - alert: HttpSlow
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(olympia_http_request_duration_seconds_bucket[5m]))) > 1
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'REST p95 > 1 giây trong 10 phút'
+      - alert: Http5xx
+        expr: |
+          sum(rate(olympia_http_request_duration_seconds_count{status=~"5.."}[5m]))
+            / sum(rate(olympia_http_request_duration_seconds_count[5m])) > 0.02
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: 'Hơn 2% request REST lỗi 5xx'
+      - alert: EventLoopLag
+        expr: olympia_event_loop_delay_p99_seconds > 0.2
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Event loop p99 > 200 ms trên {{ $labels.instance }} (ảnh hưởng độ trễ realtime)'
+      - alert: ClientErrorsSpike
+        expr: sum(increase(olympia_client_errors_total[10m])) > 50
+        labels: { severity: warning }
+        annotations:
+          summary: 'Nhiều lỗi giao diện trình duyệt trong 10 phút'
