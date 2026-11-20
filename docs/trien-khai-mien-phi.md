@@ -1,6 +1,6 @@
 # TRIỂN KHAI NHANH BẰNG DỊCH VỤ MIỄN PHÍ – OLYMPIA ONLINE
 
-> Cách deploy để chơi thử với nhóm nhỏ (gia đình, một lớp học) khi chưa có VPS: **Render** (API + Redis), **Vercel** (giao diện web), **Neon** (PostgreSQL), **LiveKit Cloud** (video/voice), **Cloudflare R2** (ảnh/video câu hỏi, không bắt buộc). Khi có VPS, chuyển sang [van-hanh.md](van-hanh.md).
+> Cách deploy để chơi thử với nhóm nhỏ (gia đình, một lớp học) khi chưa có VPS: **Render** (API + Redis), **Vercel** (giao diện web), **Neon** (PostgreSQL), **LiveKit Cloud** (video/voice), **Backblaze B2** (ảnh/video câu hỏi, không bắt buộc). Khi có VPS, chuyển sang [van-hanh.md](van-hanh.md).
 >
 > Gói miễn phí của các dịch vụ trên thay đổi theo thời gian. Kiểm tra giới hạn hiện tại trên trang giá của từng dịch vụ trước khi dùng.
 
@@ -11,7 +11,7 @@ Trình duyệt ──► Vercel (web tĩnh) ──rewrite /api/*──► Render
      │                                                     │
      ├──── WebSocket (Socket.IO) ── thẳng tới Render ──────┤──► Render Key Value (Redis)
      │                                                     │
-     └──── video/voice ── thẳng tới LiveKit Cloud ◄── token┘──► Cloudflare R2 (media)
+     └──── video/voice ── thẳng tới LiveKit Cloud ◄── token┘──► Backblaze B2 (media)
 ```
 
 - REST đi qua rewrite của Vercel nên trình duyệt coi web và API là **cùng một tên miền**. Nhờ đó cookie đăng nhập (`SameSite=Strict`) hoạt động bình thường.
@@ -36,7 +36,7 @@ Ghi các giá trị sau vào một chỗ an toàn (không commit). Bạn sẽ đ
 | ------- | ---------- |
 | `DATABASE_URL` | 4 – Neon |
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | 5 – LiveKit Cloud |
-| `S3_*` | 6 – Cloudflare R2 (không bắt buộc) |
+| `S3_*` | 6 – Backblaze B2 (không bắt buộc) |
 | `SMTP_URL`, `MAIL_FROM` | 8 – Gmail (không bắt buộc) |
 
 ## 4. Neon (PostgreSQL)
@@ -61,28 +61,48 @@ Ghi các giá trị sau vào một chỗ an toàn (không commit). Bạn sẽ đ
 
 Không cần cấu hình gì thêm. Nếu LiveKit lỗi hoặc hết hạn mức, trận vẫn chơi được và chỉ không có video (BR-AV-02).
 
-## 6. Cloudflare R2 (ảnh/video trong câu hỏi – không bắt buộc)
+## 6. Backblaze B2 (ảnh/video trong câu hỏi – không bắt buộc)
 
 Bỏ qua bước này nếu câu hỏi chỉ có chữ. Khi đó vẫn phải điền giá trị giả ở bước 7 (xem ghi chú ở đó), và chức năng tải ảnh/video lên sẽ báo lỗi.
 
-1. Trong Cloudflare dashboard, vào **R2** và tạo bucket `olympia-media`. R2 có thể yêu cầu thêm phương thức thanh toán dù dùng trong hạn mức miễn phí.
-2. Vào bucket → **Settings → CORS Policy**, dán nội dung sau (thay bằng tên miền Vercel của bạn ở bước 9; tạm để `*` rồi sửa lại sau cũng được):
+API chỉ cần một object storage **tương thích S3** có presigned URL và CORS, nên dịch vụ nào đáp ứng được cũng dùng được. Hướng dẫn này dùng Backblaze B2 vì gói miễn phí (10 GB) **không cần thẻ thanh toán**. Cloudflare R2 cũng dùng được nhưng đòi thẻ ngay cả khi dùng trong hạn mức miễn phí.
+
+1. **Đăng ký** tại [backblaze.com/sign-up/cloud-storage](https://www.backblaze.com/sign-up/cloud-storage): chỉ cần email, mật khẩu và **Region**. Chọn **US West** (B2 không có vùng châu Á). Region không đổi được sau này. Bấm link xác nhận trong email Backblaze gửi tới.
+   - Khi đăng nhập, chọn tab **Individual Account**. Tab **Organization** dành cho đăng nhập SSO của công ty và sẽ báo "Please enter a valid organization".
+   - Không có thẻ thì B2 chặn khi chạm hạn mức miễn phí hằng ngày (dung lượng tải xuống, số lượt gọi API) chứ không tính tiền. Xem ở mục **Caps & Alerts**.
+2. **Tạo bucket**: **B2 Cloud Storage → Buckets → Create a Bucket**.
+   - Tên bucket phải là duy nhất trên toàn B2, ví dụ `olympia-media-<ten-ban>`.
+   - **Files in Bucket: Private**. Không cần Public vì API phát presigned URL cho cả upload lẫn tải về.
+   - Ghi lại **Endpoint** hiện ở thẻ bucket, dạng `s3.us-west-004.backblazeb2.com`.
+3. **Tạo khóa**: **Application Keys → Add a New Application Key**. Phần **Allow access to Bucket(s)** chọn bucket vừa tạo, **Type of Access** chọn **Read and Write**. Ghi lại **keyID** và **applicationKey** (khóa này chỉ hiện một lần).
+4. **Đặt CORS** để trình duyệt upload thẳng lên bucket. Giao diện web của B2 không cho chọn quyền upload (`PUT`), nên phải dùng [B2 CLI](https://www.backblaze.com/docs/cloud-storage-command-line-tools). Cài bằng `pip install b2`, hoặc tải bản `b2-windows.exe` ở trang release của B2 CLI trên GitHub. Tạo file `cors.json` (thay bằng tên miền Vercel ở bước 9; nếu chưa biết thì tạm để `"*"` rồi sửa lại sau):
 
    ```json
    [
      {
-       "AllowedOrigins": ["https://ten-du-an.vercel.app"],
-       "AllowedMethods": ["GET", "PUT"],
-       "AllowedHeaders": ["Content-Type"],
-       "MaxAgeSeconds": 3600
+       "corsRuleName": "olympia-web",
+       "allowedOrigins": ["https://ten-du-an.vercel.app"],
+       "allowedOperations": ["s3_put", "s3_get", "s3_head"],
+       "allowedHeaders": ["*"],
+       "exposeHeaders": ["ETag"],
+       "maxAgeSeconds": 3600
      }
    ]
    ```
 
-3. Vào **R2 → Manage API tokens** và tạo token quyền **Object Read & Write**, chỉ cho bucket `olympia-media`. Ghi lại:
-   - `S3_ENDPOINT` và `S3_PUBLIC_ENDPOINT`: `https://<account-id>.r2.cloudflarestorage.com`
-   - `S3_BUCKET`: `olympia-media`
-   - `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`: lấy từ token vừa tạo
+   Sau đó chạy lệnh dưới đây **trong Git Bash** (PowerShell làm hỏng dấu nháy của JSON):
+
+   ```bash
+   b2 account authorize <keyID> <applicationKey>
+   b2 bucket update --cors-rules "$(cat cors.json)" olympia-media-<ten-ban> allPrivate
+   ```
+
+   Bản B2 CLI cũ dùng `b2 authorize-account` và `b2 update-bucket` thay cho hai lệnh trên.
+5. Các giá trị cần điền ở bước 7:
+   - `S3_ENDPOINT` và `S3_PUBLIC_ENDPOINT`: `https://` + Endpoint ở bước 2, ví dụ `https://s3.us-west-004.backblazeb2.com`
+   - `S3_REGION`: phần giữa của Endpoint, ví dụ `us-west-004`. **Phải khớp**, nếu không B2 sẽ từ chối chữ ký của presigned URL.
+   - `S3_BUCKET`: tên bucket
+   - `S3_ACCESS_KEY_ID`: keyID. `S3_SECRET_ACCESS_KEY`: applicationKey.
 
 ## 7. Render (API + Redis)
 
@@ -101,12 +121,12 @@ Repo đã có sẵn [`render.yaml`](../render.yaml), khai báo:
    | `APP_URL` | `https://ten-du-an.vercel.app`. Tạm điền tên bạn định đặt cho dự án Vercel, sửa lại sau ở bước 9 nếu khác. |
    | `CORS_ORIGINS` | Giống `APP_URL` |
    | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Bước 5 |
-   | `S3_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Bước 6. Nếu bỏ qua R2: `S3_ENDPOINT` và `S3_PUBLIC_ENDPOINT` = `https://example.invalid`, `S3_BUCKET` = `olympia-media`, hai khóa điền chuỗi bất kỳ khác `dev` |
+   | `S3_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Bước 6. Nếu bỏ qua bước 6: `S3_ENDPOINT` và `S3_PUBLIC_ENDPOINT` = `https://example.invalid`, `S3_REGION` = `auto`, `S3_BUCKET` = `olympia-media`, hai khóa điền chuỗi bất kỳ khác `dev` |
    | `SMTP_URL`, `MAIL_FROM` | Bước 8. Nếu chưa có: `SMTP_URL` = `smtp://localhost:25`, `MAIL_FROM` = `Olympia <no-reply@example.com>` |
 
 3. Bấm **Apply** và chờ build xong (lần đầu khoảng 5–10 phút).
 4. Ghi lại URL của API, dạng `https://olympia-api.onrender.com` (Render có thể thêm hậu tố nếu tên đã có người dùng, ví dụ `olympia-api-ab12.onrender.com`).
-5. Kiểm tra: mở `https://<url-render>/api/health/live`, kết quả phải là `{"status":"ok"}`. Trang `/api/health/ready` báo lỗi object storage khi bỏ qua R2, như vậy là bình thường.
+5. Kiểm tra: mở `https://<url-render>/api/health/live`, kết quả phải là `{"status":"ok"}`. Trang `/api/health/ready` báo lỗi object storage khi bỏ qua bước 6, như vậy là bình thường. Nếu đã cấu hình B2 mà trang này vẫn báo lỗi object storage, hãy kiểm tra lại `S3_ENDPOINT`, `S3_REGION`, tên bucket và khóa.
 
 Nếu deploy lỗi, xem **Logs** của service `olympia-api`:
 
@@ -152,7 +172,7 @@ UPDATE users SET system_role = 'super_admin' WHERE email = 'email.cua.ban@gmail.
 3. Bấm **Deploy**. Sau khi xong, Vercel cho tên miền dạng `https://ten-du-an.vercel.app`.
 4. Nếu tên miền này khác giá trị đã điền ở bước 7:
    - sửa `APP_URL` và `CORS_ORIGINS` trong Render → Environment (Render tự deploy lại);
-   - sửa `AllowedOrigins` trong CORS của R2.
+   - sửa `allowedOrigins` trong `cors.json` rồi chạy lại lệnh `b2 bucket update` ở bước 6.
 
 > `VITE_SOCKET_URL` được đóng vào bản build. Mỗi lần đổi biến này, phải **Redeploy** dự án trên Vercel.
 
@@ -170,7 +190,7 @@ Nếu lúc chơi gặp lỗi:
 | Trang mở được nhưng đăng nhập báo lỗi mạng | Render đang thức dậy (chờ khoảng 1 phút rồi thử lại), hoặc tên miền Render trong `vercel.json` sai. |
 | Vào phòng mãi hiện "Đang kết nối" | `VITE_SOCKET_URL` sai hoặc chưa Redeploy Vercel; `CORS_ORIGINS` trên Render không khớp tên miền Vercel. |
 | Không có video, chỉ có ảnh đại diện | Sai khóa LiveKit, hoặc trình duyệt chưa cho phép camera/micro. Trận vẫn chơi được. |
-| Tải ảnh câu hỏi lên bị lỗi | Chưa cấu hình R2 hoặc CORS của bucket chưa có tên miền Vercel. |
+| Tải ảnh câu hỏi lên bị lỗi | Chưa cấu hình B2, CORS của bucket chưa có tên miền Vercel, hoặc `S3_REGION` không khớp Endpoint. |
 
 ## 11. Cập nhật phiên bản
 
