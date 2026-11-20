@@ -17,6 +17,7 @@
     "format:check": "prettier --check .",
     "test": "npm run test --workspaces --if-present",
     "test:e2e": "npm run test:e2e -w @olympia/web",
+    "test:e2e:full": "npm run test:e2e:full -w @olympia/web",
     "services:up": "docker compose up -d",
     "services:down": "docker compose down",
     "db:migrate": "npm run db:migrate -w @olympia/api"

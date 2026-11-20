@@ -189,6 +189,17 @@ describe('Vòng đời phòng (4.3)', () => {
     expect(results.filter((r) => r.status === 409)).toHaveLength(2);
   });
 
+  it('tạo-và-mở phòng đồng thời không deadlock, không vượt giới hạn (kiểm thử tải P8)', async () => {
+    const { accessToken } = await createUserAndLogin(ctx);
+    const auth = `Bearer ${accessToken}`;
+
+    const results = await Promise.all(
+      [1, 2, 3, 4, 5].map(() => as(auth).post('/api/rooms', { ...baseRoom, open: true })),
+    );
+
+    expect(results.map((r) => r.status).sort()).toEqual([201, 201, 409, 409, 409]);
+  });
+
   it('đổi mã phòng làm mã cũ hết hiệu lực (DL-027)', async () => {
     const { room, hostAuth } = await createOpenRoom(ctx);
     const oldCode = room.code!;

@@ -64,12 +64,56 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium firefox webkit
         working-directory: apps/web
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7
+
+  e2e-full:
+    name: E2E trận đầy đủ (backend thật)
+    runs-on: ubuntu-latest
+    # API của E2E dùng database olympia_e2e (tự tạo) và Redis DB 14.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: olympia
+          POSTGRES_PASSWORD: olympia
+          POSTGRES_DB: olympia
+        ports:
+          - 5440:5432
+        options: >-
+          --health-cmd "pg_isready -U olympia -d olympia"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium firefox
+        working-directory: apps/web
+      - run: npm run test:e2e:full
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-full
           path: apps/web/playwright-report
           retention-days: 7

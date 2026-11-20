@@ -51,6 +51,8 @@ export function createRoomsRouter({
   const router = Router();
   // Chống dò mã phòng (mã 6 ký tự).
   const lookupLimiter = limiters({ keyPrefix: 'room-lookup', points: 30, durationSeconds: 60 });
+  // Chống lấp phòng bằng khách ảo / spam yêu cầu làm người chơi từ một địa chỉ.
+  const joinLimiter = limiters({ keyPrefix: 'room-join', points: 15, durationSeconds: 60 });
   const canCreate = requirePermission(SystemPermission.CreateRooms);
 
   // --- Công khai ---
@@ -113,6 +115,8 @@ export function createRoomsRouter({
   /** Tài khoản hoặc khách (không cần đăng nhập). Khách mới nhận phiên khách gắn phòng. */
   router.post('/:roomId/join', requireCsrfHeader, async (req, res) => {
     const { roomId } = roomParams.parse(req.params);
+    const blocked = await joinLimiter.consume(`${req.ip ?? 'unknown'}|${roomId}`);
+    if (blocked !== null) throw new TooManyRequestsError(blocked, 'Bạn vào phòng quá nhiều lần.');
     const input = joinRoomRequestSchema.parse(req.body);
     const result = await lobbyService.join(req.principal, roomId, input, { ip: req.ip });
     const body: JoinRoomResponse = {

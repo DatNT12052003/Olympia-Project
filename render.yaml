@@ -1,0 +1,69 @@
+# Render Blueprint: API (Docker) + Redis (Key Value). Hướng dẫn: docs/trien-khai-mien-phi.md
+# Các biến `sync: false` nhập trên giao diện Render khi tạo Blueprint (không lưu trong repo).
+services:
+  - type: web
+    name: olympia-api
+    runtime: docker
+    region: singapore
+    plan: free
+    dockerfilePath: ./deploy/Dockerfile.api
+    dockerContext: .
+    # Áp dụng migration rồi chạy API (gói free không có Pre-Deploy Command).
+    dockerCommand: sh -c "node dist/infrastructure/database/run-migrations.js up && node dist/main.js"
+    healthCheckPath: /api/health/live
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Trình duyệt → Vercel (rewrite /api) → proxy của Render → API.
+      - key: TRUST_PROXY
+        value: '2'
+      - key: DATABASE_POOL_SIZE
+        value: '5'
+      - key: API_RATE_LIMIT_PER_MINUTE
+        value: '1200'
+      - key: LOG_LEVEL
+        value: info
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: olympia-redis
+          property: connectionString
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_PUBLIC_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        value: auto
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: SMTP_URL
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+
+  - type: keyvalue
+    name: olympia-redis
+    region: singapore
+    plan: free
+    # Hàng đợi/khóa/trạng thái trận không được bị xóa khi đầy bộ nhớ.
+    maxmemoryPolicy: noeviction
+    # Chỉ dịch vụ trong Render truy cập được.
+    ipAllowList: []

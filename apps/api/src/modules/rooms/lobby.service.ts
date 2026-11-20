@@ -6,7 +6,7 @@ import {
   type RoomRemovedReason,
   type RoomState,
 } from '@olympia/shared';
-import { type DataSource, type EntityManager, In, LessThan, QueryFailedError } from 'typeorm';
+import { type DataSource, type EntityManager, In, QueryFailedError } from 'typeorm';
 import type { z } from 'zod';
 import type { LimiterFactory } from '../../infrastructure/rate-limit/rate-limiter';
 import type { GuestPrincipal, Principal, UserPrincipal } from '../../shared/auth/principal';
@@ -17,6 +17,7 @@ import {
   NotFoundError,
   TooManyRequestsError,
 } from '../../shared/errors/app-error';
+import { writeAuditLog } from '../audit/audit-log';
 import type { IssuedGuestSession } from '../auth/auth.service';
 import type { PasswordHasher } from '../auth/password-hasher';
 import { UserEntity } from '../users/user.entity';
@@ -62,6 +63,9 @@ export interface JoinResult {
   participant: ParticipantView;
   guestSession?: IssuedGuestSession;
 }
+
+/** Khoảng thời gian gộp các lần vào giám sát cùng một phòng trong nhật ký (DL-051). */
+const MONITOR_LOG_WINDOW_MINUTES = 30;
 
 /** Số khán giả người không phải Host thấy trong danh sách. */
 const MEMBER_SPECTATOR_PREVIEW = 20;
@@ -754,6 +758,35 @@ export function createLobbyService(deps: LobbyServiceDeps) {
     /** Người xem đã từng được nhận vào phòng (khán giả xem tổng kết trận, mục 9.4). */
     wasMember,
 
+    /**
+     * Ghi nhật ký quản trị khi nhân viên vào giám sát (DL-051). Kết nối lại trong
+     * `MONITOR_LOG_WINDOW_MINUTES` phút không ghi thêm để nhật ký không bị lặp do mạng chập chờn.
+     */
+    async recordMonitorVisit(roomId: string, actorUserId: string): Promise<void> {
+      const since = new Date(now().getTime() - MONITOR_LOG_WINDOW_MINUTES * 60_000);
+      await dataSource.transaction(async (manager) => {
+        const recent = await manager.query<unknown[]>(
+          `SELECT 1 FROM admin_audit_logs
+            WHERE actor_user_id = $1 AND action = 'room.monitor' AND target_id = $2
+              AND created_at > $3
+            LIMIT 1`,
+          [actorUserId, roomId, since],
+        );
+        if (recent.length > 0) return;
+        const room = await manager.getRepository(RoomEntity).findOneBy({ id: roomId });
+        const host = room
+          ? await manager.getRepository(UserEntity).findOneBy({ id: room.hostUserId })
+          : null;
+        await writeAuditLog(manager, {
+          actorUserId,
+          action: 'room.monitor',
+          targetType: 'room',
+          targetId: roomId,
+          details: { name: room?.name ?? null, hostName: host?.displayName ?? null },
+        });
+      });
+    },
+
     async roomForReactions(roomId: string): Promise<RoomEntity | null> {
       return dataSource.getRepository(RoomEntity).findOneBy({ id: roomId });
     },
@@ -803,15 +836,40 @@ export function createLobbyService(deps: LobbyServiceDeps) {
     /** Tự đóng phòng mở không hoạt động (BR-ROOM-02, DL-030). Trả số phòng đã đóng. */
     async closeIdleRooms(): Promise<number> {
       const threshold = new Date(now().getTime() - config.roomIdleMinutes * 60_000);
-      const candidates = await dataSource.getRepository(RoomEntity).find({
-        where: { status: 'open', lastActivityAt: LessThan(threshold) },
-        take: 100,
-      });
+      // Duyệt theo trang (lastActivityAt, id): phòng còn người online bị bỏ qua không được chiếm
+      // mãi cửa sổ xét, làm các phòng nhàn rỗi phía sau không bao giờ được đóng.
+      const PAGE = 100;
+      const MAX_PER_RUN = 5_000;
+      let cursor: { at: Date; id: string } | null = null;
+      let scanned = 0;
       let closed = 0;
-      for (const room of candidates) {
-        const entries = await presence.get(room.id);
-        if ([...entries.values()].some((entry) => entry.status === 'online')) continue;
-        if (await deps.closeRoom(room.id, 'inactive', null)) closed += 1;
+      while (scanned < MAX_PER_RUN) {
+        const query = dataSource
+          .getRepository(RoomEntity)
+          .createQueryBuilder('r')
+          .where('r.status = :status', { status: 'open' })
+          .andWhere('r.lastActivityAt < :threshold', { threshold })
+          // So sánh ở độ chính xác mili giây như `Date` của JS (cột lưu tới micro giây).
+          .orderBy("date_trunc('milliseconds', r.lastActivityAt)", 'ASC')
+          .addOrderBy('r.id', 'ASC')
+          .take(PAGE);
+        if (cursor) {
+          query.andWhere(
+            "(date_trunc('milliseconds', r.lastActivityAt), r.id) > (:at, :id)",
+            cursor,
+          );
+        }
+        const candidates = await query.getMany();
+        if (candidates.length === 0) break;
+        scanned += candidates.length;
+        for (const room of candidates) {
+          const entries = await presence.get(room.id);
+          if ([...entries.values()].some((entry) => entry.status === 'online')) continue;
+          if (await deps.closeRoom(room.id, 'inactive', null)) closed += 1;
+        }
+        const last = candidates[candidates.length - 1]!;
+        cursor = { at: last.lastActivityAt, id: last.id };
+        if (candidates.length < PAGE) break;
       }
       return closed;
     },

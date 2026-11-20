@@ -1,0 +1,235 @@
+# Production trên VPS (DL-023): Caddy (HTTPS + web tĩnh), API, PostgreSQL, Redis, LiveKit (kèm
+# TURN), sao lưu DB định kỳ, giám sát Prometheus + Grafana + Loki (DL-053).
+# Hướng dẫn đầy đủ: docs/van-hanh.md. Chạy từ thư mục deploy/:
+#   cp .env.example .env   # rồi điền giá trị thật
+#   docker compose -f docker-compose.prod.yml up -d --build
+name: olympia-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: '20m'
+    max-file: '5'
+
+services:
+  caddy:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+      args:
+        VITE_RELEASE: ${RELEASE:-prod}
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL}
+      APP_DOMAIN: ${APP_DOMAIN}
+      LIVEKIT_DOMAIN: ${LIVEKIT_DOMAIN}
+      TURN_DOMAIN: ${TURN_DOMAIN}
+      MEDIA_ORIGIN: ${MEDIA_ORIGIN}
+      MEDIA_UPLOAD_ORIGIN: ${MEDIA_UPLOAD_ORIGIN}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *logging
+
+  # Áp dụng migration rồi thoát; API chỉ khởi động khi bước này thành công.
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    image: olympia-api:${RELEASE:-prod}
+    env_file: .env
+    environment: &api-env
+      NODE_ENV: production
+      PORT: '3000'
+      METRICS_PORT: '9464'
+      TRUST_PROXY: '1'
+      DATABASE_URL: postgres://olympia:${POSTGRES_PASSWORD}@postgres:5432/olympia
+      REDIS_URL: redis://redis:6379
+      APP_URL: https://${APP_DOMAIN}
+      CORS_ORIGINS: https://${APP_DOMAIN}
+      LIVEKIT_URL: wss://${LIVEKIT_DOMAIN}
+      LIVEKIT_API_URL: http://host.docker.internal:7880
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    command: ['node', 'dist/infrastructure/database/run-migrations.js', 'up']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    logging: *logging
+
+  api:
+    image: olympia-api:${RELEASE:-prod}
+    env_file: .env
+    environment: *api-env
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    restart: unless-stopped
+    stop_grace_period: 20s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    logging: *logging
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: olympia
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: olympia
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U olympia -d olympia']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *logging
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *logging
+
+  # SFU video/voice (DL-019) kèm TURN tích hợp. Mạng host: media UDP/TCP đi thẳng tới VPS, không
+  # qua NAT của Docker. Chứng chỉ TURN/TLS lấy từ Caddy (cùng volume caddy-data, chỉ đọc).
+  livekit:
+    image: livekit/livekit-server:v1.13.11
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      LIVEKIT_KEYS: '${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}'
+      LIVEKIT_CONFIG: |
+        # Caddy gọi qua host.docker.internal (IP bridge Docker); firewall chặn 7880 từ ngoài.
+        port: 7880
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          use_external_ip: true
+        turn:
+          enabled: true
+          domain: ${TURN_DOMAIN}
+          tls_port: 5349
+          udp_port: 3478
+          cert_file: /certs/${TURN_DOMAIN}/${TURN_DOMAIN}.crt
+          key_file: /certs/${TURN_DOMAIN}/${TURN_DOMAIN}.key
+        logging:
+          level: info
+    volumes:
+      - type: volume
+        source: caddy-data
+        target: /certs
+        read_only: true
+        volume:
+          subpath: caddy/certificates/acme-v02.api.letsencrypt.org-directory
+    # Lần đầu Caddy chưa kịp cấp chứng chỉ TURN: LiveKit lỗi và tự khởi động lại tới khi có.
+    depends_on:
+      - caddy
+    logging: *logging
+
+  # Sao lưu PostgreSQL hằng ngày ra object storage (DL-023), giữ BACKUP_RETENTION_DAYS ngày.
+  backup:
+    build:
+      context: backup
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGUSER: olympia
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: olympia
+      BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET}
+      BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-postgres}
+      AWS_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${BACKUP_S3_REGION:-auto}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_CRON: ${BACKUP_CRON:-0 19 * * *}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *logging
+
+  # --- Giám sát (DL-053): chỉ mở trên 127.0.0.1, truy cập qua SSH tunnel. ---
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - '127.0.0.1:9090:9090'
+    logging: *logging
+
+  loki:
+    image: grafana/loki:3.5.3
+    restart: unless-stopped
+    command: ['-config.file=/etc/loki/loki.yml']
+    volumes:
+      - ./monitoring/loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+    logging: *logging
+
+  # Gom log JSON (Pino) của mọi container gửi vào Loki.
+  promtail:
+    image: grafana/promtail:3.5.3
+    restart: unless-stopped
+    command: ['-config.file=/etc/promtail/promtail.yml']
+    volumes:
+      - ./monitoring/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    logging: *logging
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - '127.0.0.1:3001:3000'
+    depends_on:
+      - prometheus
+      - loki
+    logging: *logging
+
+volumes:
+  caddy-data:
+  caddy-config:
+  postgres-data:
+  redis-data:
+  prometheus-data:
+  loki-data:
+  grafana-data:

@@ -613,6 +613,7 @@ export function buildMatchView(state: MatchState, input: ViewInput): MatchView {
     nextStep: nextStepOf(state),
     awaitingHost: mode === 'auto' && state.status === 'running' && plugin.awaitingHost(state.round),
     tiebreakWinner: state.tiebreakWinner ?? null,
+    soundEffects: state.settings.soundEffects ?? true,
     players,
     timer: state.timer
       ? {

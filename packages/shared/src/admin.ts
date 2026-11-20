@@ -167,6 +167,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'question_set.takedown': 'Gỡ bộ public',
   'match.void': 'Hủy kết quả trận',
   'room.close': 'Đóng phòng vi phạm',
+  'room.monitor': 'Vào giám sát phòng',
   'report.resolve': 'Xử lý báo cáo vi phạm',
   'system.settings_update': 'Cập nhật cấu hình hệ thống',
 };

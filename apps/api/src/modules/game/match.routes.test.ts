@@ -285,6 +285,19 @@ describe('Bắt đầu trận POST /api/rooms/:roomId/match', () => {
     await command(a, matchId, { type: 'end_match' });
   });
 
+  it('nhiều trận bắt đầu cùng lúc (nhiều hơn pool kết nối DB) không treo (kiểm thử tải P8)', async () => {
+    const arenas = await Promise.all(Array.from({ length: 12 }, () => arena()));
+
+    const results = await Promise.race([
+      Promise.all(arenas.map((a) => a.host.post(`/api/rooms/${a.roomId}/match`))),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Bắt đầu trận bị treo (cạn pool DB)')), 20_000),
+      ),
+    ]);
+
+    expect(results.map((r) => r.status)).toEqual(arenas.map(() => 201));
+  }, 60_000);
+
   it('chơi một câu phần thi riêng; điểm, câu trả lời, sổ điểm và kết thúc trận được lưu bền', async () => {
     const a = await arena();
     const matchId = await start(a);

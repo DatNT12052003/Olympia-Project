@@ -1,0 +1,17 @@
+# Thu metrics của API (cổng nội bộ 9464, mọi instance qua DNS của Docker) và chính Prometheus.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 30s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: olympia-api
+    dns_sd_configs:
+      - names: ['api']
+        type: A
+        port: 9464
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

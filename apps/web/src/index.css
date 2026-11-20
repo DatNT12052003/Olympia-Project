@@ -36,6 +36,33 @@
   /* Cảm xúc nổi lên trong phòng thi (mục 13). */
   --animate-reaction: reaction-float 2.6s ease-out forwards;
 
+  /* Hiệu ứng trận (11.4): nháy kết quả, pháo giấy khi kết thúc trận. */
+  --animate-result-flash: result-flash 0.9s ease-out forwards;
+  --animate-confetti: confetti-fall 2.8s linear forwards;
+
+  @keyframes result-flash {
+    0% {
+      opacity: 0;
+    }
+    15% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes confetti-fall {
+    0% {
+      opacity: 1;
+      transform: translateY(-10vh) rotate(0deg);
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(105vh) rotate(720deg);
+    }
+  }
+
   @keyframes reaction-float {
     0% {
       opacity: 0;

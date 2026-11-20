@@ -72,6 +72,8 @@ export function createRealtimeServer(
   const io: RealtimeServer = new Server(httpServer, {
     cors: { origin: corsOrigins, credentials: true },
     serveClient: false,
+    // Sự kiện của client đều nhỏ (lệnh, câu trả lời ngắn); chặn gói tin lớn bất thường.
+    maxHttpBufferSize: 64 * 1024,
     ...(adapter ? { adapter } : {}),
   });
 

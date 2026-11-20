@@ -165,15 +165,19 @@ export function createRoomsService(deps: RoomsServiceDeps) {
     }
   }
 
-  /** Mở phòng: kiểm tra giới hạn phòng đang hoạt động (BR-ROOM-03) và cấp mã phòng. */
-  async function openRoom(manager: EntityManager, room: RoomEntity): Promise<void> {
-    // Khóa dòng người dùng để hai lần mở phòng đồng thời không vượt giới hạn.
+  /** Khóa dòng người dùng để hai lần mở phòng đồng thời của cùng Host không vượt giới hạn. */
+  async function lockHost(manager: EntityManager, hostUserId: string): Promise<void> {
     await manager
       .getRepository(UserEntity)
       .createQueryBuilder('u')
-      .where('u.id = :id', { id: room.hostUserId })
+      .where('u.id = :id', { id: hostUserId })
       .setLock('pessimistic_write')
       .getOne();
+  }
+
+  /** Mở phòng: kiểm tra giới hạn phòng đang hoạt động (BR-ROOM-03) và cấp mã phòng. */
+  async function openRoom(manager: EntityManager, room: RoomEntity): Promise<void> {
+    await lockHost(manager, room.hostUserId);
     const active = await manager.countBy(RoomEntity, {
       hostUserId: room.hostUserId,
       status: In(ACTIVE_ROOM_STATUSES),
@@ -257,6 +261,9 @@ export function createRoomsService(deps: RoomsServiceDeps) {
       const passwordHash = input.password ? await passwords.hash(input.password) : null;
       const roomId = await withCodeRetry(() =>
         dataSource.transaction(async (manager) => {
+          // Khóa Host trước khi chèn phòng: chèn trước sẽ giữ khóa KEY SHARE (khóa ngoại tới
+          // users) rồi mới xin FOR UPDATE, hai lần tạo đồng thời chờ nhau thành deadlock.
+          if (input.open) await lockHost(manager, actor.userId);
           const room = manager.create(RoomEntity, {
             hostUserId: actor.userId,
             name: input.name,
@@ -475,15 +482,39 @@ export function createRoomsService(deps: RoomsServiceDeps) {
      * Bắt đầu trận (8.3): khóa phòng, kiểm tra Host, phòng đang mở, đủ người chơi có ghế và đã
      * Sẵn sàng (BR-JOIN-04), rồi chạy `work` của Game Engine trong cùng transaction và chuyển
      * phòng sang Đang thi (BR-ROOM-01).
+     *
+     * `prepare` (đọc kịch bản, câu hỏi) chạy **trước** transaction: nó dùng kết nối riêng của
+     * module khác, nếu chạy trong lúc transaction đang giữ kết nối thì nhiều trận bắt đầu cùng lúc
+     * sẽ chiếm hết pool và chờ nhau mãi (phát hiện khi kiểm thử tải P8). Trong transaction, phòng
+     * phải vẫn dùng đúng kịch bản đã chuẩn bị.
      */
-    async beginMatch<T>(
+    async beginMatch<T, P>(
       actor: UserPrincipal,
       roomId: string,
       options: { skipReady: boolean },
-      work: (manager: EntityManager, room: RoomEntity, players: SeatedPlayer[]) => Promise<T>,
+      prepare: (scriptId: string | null) => Promise<P>,
+      work: (
+        manager: EntityManager,
+        room: RoomEntity,
+        players: SeatedPlayer[],
+        prepared: P,
+      ) => Promise<T>,
     ): Promise<T> {
+      const current = await dataSource.getRepository(RoomEntity).findOneBy({ id: roomId });
+      if (!current || current.hostUserId !== actor.userId) {
+        throw new NotFoundError('Không tìm thấy phòng.');
+      }
+      const preparedScriptId = current.scriptId;
+      const prepared = await prepare(preparedScriptId);
+
       const result = await dataSource.transaction(async (manager) => {
         const room = await loadOwnRoom(manager, actor, roomId);
+        if (room.scriptId !== preparedScriptId) {
+          throw new ConflictError(
+            'Kịch bản của phòng vừa thay đổi. Hãy bấm Bắt đầu lại.',
+            RoomErrorCode.InvalidRoomState,
+          );
+        }
         if (room.status !== 'open') {
           throw new ConflictError(
             room.status === 'in_match' ? 'Phòng đang có trận diễn ra.' : 'Phòng chưa mở.',
@@ -516,6 +547,7 @@ export function createRoomsService(deps: RoomsServiceDeps) {
             userId: p.userId,
             guestId: p.guestId,
           })),
+          prepared,
         );
         await manager.update(
           RoomEntity,

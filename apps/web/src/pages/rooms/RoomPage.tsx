@@ -2,6 +2,8 @@ import { RoomErrorCode, type RoomRemovedReason } from '@olympia/shared';
 import { Link, useParams } from 'react-router';
 import { AvProvider } from '../../features/av/AvProvider';
 import { HostMatch } from '../../features/match/HostMatch';
+import { useMatchCues } from '../../features/match/match-cues';
+import { Confetti, MatchFxControls, ResultFlashOverlay } from '../../features/match/match-fx';
 import { MatchResultDialog } from '../../features/match/match-ui';
 import { PlayerMatch } from '../../features/match/PlayerMatch';
 import { SpectatorMatch } from '../../features/match/SpectatorMatch';
@@ -56,6 +58,7 @@ function Room({ roomId }: { roomId: string }) {
     Boolean(state) && isMember && !channel.removed,
     state?.version,
   );
+  const cues = useMatchCues(channel.match, channel.clockOffset);
 
   if (channel.removed) {
     const message =
@@ -202,8 +205,21 @@ function Room({ roomId }: { roomId: string }) {
         {content}
       </AvProvider>
       {match?.status === 'finished' && (
-        <MatchResultDialog view={match} onClose={channel.dismissMatch} />
+        <>
+          {match.endReason !== 'abnormal' && <Confetti />}
+          <MatchResultDialog view={match} onClose={channel.dismissMatch} />
+        </>
       )}
+      {/* Chừa chỗ cho nút nổi ở góc để không che nội dung cuối trang. */}
+      {live && <div aria-hidden="true" className="h-16 shrink-0" />}
+      {live && (
+        <MatchFxControls
+          soundAvailable={cues.available}
+          muted={cues.muted}
+          onMutedChange={cues.setMuted}
+        />
+      )}
+      <ResultFlashOverlay flash={cues.flash} />
       <ReactionLayer reactions={channel.reactions} />
       {channel.connection === 'offline' && channel.offlineSince !== null && (
         <ReconnectOverlay

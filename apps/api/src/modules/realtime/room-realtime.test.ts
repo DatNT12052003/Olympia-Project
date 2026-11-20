@@ -11,6 +11,7 @@ import type {
 } from '@olympia/shared';
 import { io as connectClient, type Socket as ClientSocket } from 'socket.io-client';
 import request from 'supertest';
+import { In } from 'typeorm';
 import { memoryLimiterFactory } from '../../infrastructure/rate-limit/rate-limiter';
 import {
   createOpenRoom,
@@ -20,8 +21,10 @@ import {
   type TestContext,
 } from '../../test/test-context';
 import { silentLogger } from '../../test/test-logger';
+import { AdminAuditLogEntity } from '../audit/admin-audit-log.entity';
 import { OrganizationEntity } from '../organizations/organization.entity';
 import { OrganizationManagerEntity } from '../organizations/organization-manager.entity';
+import { generateRoomCode } from '../rooms/room-code';
 import { RoomEntity } from '../rooms/room.entity';
 import {
   createRealtimeServer,
@@ -228,13 +231,44 @@ describe('Kết nối và kết nối lại (mục 12)', () => {
     const idle = await createOpenRoom(ctx);
     const watcher = await connect(busy.host.accessToken);
     await subscribed(watcher, busy.room.id);
+    const repo = ctx.dataSource.getRepository(RoomEntity);
+    // Lùi thời điểm hoạt động của riêng hai phòng này (không tua đồng hồ chung: database test
+    // dùng chung với các suite chạy song song, phòng của chúng không được bị coi là nhàn rỗi).
+    await ageRooms([busy.room.id, idle.room.id]);
 
-    offsetMs = 61 * 60_000;
     await ctx.lobbyService.closeIdleRooms();
 
-    const repo = ctx.dataSource.getRepository(RoomEntity);
     expect((await repo.findOneByOrFail({ id: idle.room.id })).status).toBe('closed');
     expect((await repo.findOneByOrFail({ id: busy.room.id })).status).toBe('open');
+  });
+
+  it('hơn 100 phòng nhàn rỗi còn người online không chặn việc đóng phòng phía sau (DL-030)', async () => {
+    const repo = ctx.dataSource.getRepository(RoomEntity);
+    const template = await repo.findOneByOrFail({ id: (await createOpenRoom(ctx)).room.id });
+    const older = new Date(Date.now() - 2 * 3_600_000);
+    // 101 phòng cũ hơn, mỗi phòng có một người đang online (không được đóng).
+    const busy = await repo.save(
+      Array.from({ length: 101 }, () =>
+        repo.create({
+          ...template,
+          id: undefined,
+          code: generateRoomCode(),
+          lastActivityAt: older,
+        }),
+      ),
+    );
+    for (const room of busy) await ctx.presence.connect(room.id, 'u:someone', 'sock', Date.now());
+    const idle = await createOpenRoom(ctx);
+    // Mới hơn các phòng bận nhưng vẫn quá 60 phút: nằm sau 100 phòng đầu khi sắp theo thời gian.
+    await ageRooms([idle.room.id], 61 * 60_000);
+
+    await ctx.lobbyService.closeIdleRooms();
+
+    expect((await repo.findOneByOrFail({ id: idle.room.id })).status).toBe('closed');
+    expect((await repo.findOneByOrFail({ id: busy[0]!.id })).status).toBe('open');
+    // Dọn để các lần chạy sau không tích thêm phòng mở trong database test.
+    await repo.update({ id: In(busy.map((room) => room.id)) }, { status: 'closed' });
+    for (const room of busy) await ctx.presence.clearRoom(room.id);
   });
 });
 
@@ -364,6 +398,22 @@ describe('Giám sát phòng của Super Admin/Manager (BR-ROLE-04)', () => {
     });
   });
 
+  it('ghi nhật ký quản trị khi vào giám sát, gộp các lần kết nối lại (DL-051)', async () => {
+    const { room } = await createOpenRoom(ctx);
+    const admin = await createUserAndLogin(ctx, { systemRole: 'super_admin' });
+    const count = () =>
+      ctx.dataSource
+        .getRepository(AdminAuditLogEntity)
+        .countBy({ actorUserId: admin.user.id, action: 'room.monitor', targetId: room.id });
+
+    await subscribed(await connect(admin.accessToken), room.id);
+    await waitForValue(count, 1);
+    await subscribed(await connect(admin.accessToken), room.id);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    expect(await count()).toBe(1);
+  });
+
   it('người giám sát nhận thông báo khi phòng bị đóng', async () => {
     const { room, hostAuth } = await createOpenRoom(ctx);
     const admin = await createUserAndLogin(ctx, { systemRole: 'super_admin' });
@@ -427,3 +477,19 @@ describe('Giám sát phòng của Super Admin/Manager (BR-ROLE-04)', () => {
     expect(state.spectators.count).toBe(1);
   });
 });
+
+/** Chờ giá trị bất đồng bộ (ví dụ dòng nhật ký ghi sau ack) đạt mong đợi. */
+async function waitForValue<T>(read: () => Promise<T>, expected: T): Promise<void> {
+  for (let i = 0; i < 30; i += 1) {
+    if ((await read()) === expected) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  expect(await read()).toBe(expected);
+}
+
+/** Đặt thời điểm hoạt động cuối của các phòng về quá khứ (mặc định 2 giờ trước). */
+async function ageRooms(roomIds: string[], agoMs = 2 * 3_600_000): Promise<void> {
+  await ctx.dataSource
+    .getRepository(RoomEntity)
+    .update({ id: In(roomIds) }, { lastActivityAt: new Date(Date.now() - agoMs) });
+}

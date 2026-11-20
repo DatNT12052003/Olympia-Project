@@ -223,6 +223,22 @@ describe('Vào phòng (4.4)', () => {
   });
 });
 
+describe('Chống lấp phòng bằng khách ảo', () => {
+  it('một địa chỉ vào cùng phòng quá 15 lần/phút bị chặn (429)', async () => {
+    const { room } = await createOpenRoom(ctx);
+    for (let i = 0; i < 15; i += 1) {
+      const res = await join(room.id, { role: 'spectator', displayName: `Khách ${i}` });
+      expect(res.status).toBe(201);
+    }
+
+    const res = await join(room.id, { role: 'spectator', displayName: 'Khách thừa' });
+
+    expect(res.status).toBe(429);
+    expect(code(res.body)).toBe('TOO_MANY_REQUESTS');
+    expect((await hostState(room.id)).spectators.count).toBe(15);
+  });
+});
+
 describe('Host quản lý sảnh chờ (BR-JOIN-03)', () => {
   it('đổi ghế: ghế đã có người thì hai người đổi chỗ', async () => {
     const { room, hostAuth } = await createOpenRoom(ctx, { room: { autoApprove: true } });

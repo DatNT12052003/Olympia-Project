@@ -13,7 +13,7 @@ import { z } from 'zod';
 import type { LimiterFactory } from '../../infrastructure/rate-limit/rate-limiter';
 import { AppError } from '../../shared/errors/app-error';
 import type { LobbyService, RoomViewer } from '../rooms/lobby.service';
-import type { PresenceStore } from '../rooms/presence-store';
+import { presenceKey, type PresenceStore } from '../rooms/presence-store';
 import type { RoomEvents } from '../rooms/room-events';
 import type { RealtimeServer, RealtimeSocket } from './realtime-server';
 
@@ -83,6 +83,12 @@ export function createRoomRealtime({
 }: RoomRealtimeDeps) {
   // BR-SPEC-02: 1 reaction / giây / người.
   const reactionLimiter = limiters({ keyPrefix: 'reaction', points: 1, durationSeconds: 1 });
+  // Mỗi lần theo dõi phòng đọc DB; client bình thường chỉ gửi khi (kết nối lại).
+  const subscribeLimiter = limiters({
+    keyPrefix: 'room-subscribe',
+    points: 20,
+    durationSeconds: 10,
+  });
 
   async function publish(roomId: string): Promise<void> {
     try {
@@ -114,6 +120,7 @@ export function createRoomRealtime({
 
   function register(socket: RealtimeSocket): void {
     const principal = socket.data.principal;
+    const principalKey = presenceKey(principal);
     /** Phòng socket này đang theo dõi, kèm khóa danh tính trong phòng. */
     const subscriptions = new Map<string, string>();
     /** Phòng socket này đang giám sát (không ghi trạng thái kết nối). */
@@ -131,6 +138,13 @@ export function createRoomRealtime({
       if (typeof ack !== 'function') return;
       try {
         const { roomId } = subscribePayload.parse(payload);
+        if ((await subscribeLimiter.consume(principalKey)) !== null) {
+          ack({
+            ok: false,
+            error: { code: CommonErrorCode.TooManyRequests, message: 'Bạn thao tác quá nhanh.' },
+          });
+          return;
+        }
         const viewer = await lobby.resolveViewer(roomId, principal);
         if (!viewer) {
           ack({
@@ -150,6 +164,11 @@ export function createRoomRealtime({
           ]);
           subscriptions.set(roomId, viewer.key);
           monitoring.add(roomId);
+          if (principal.kind === 'user') {
+            lobby.recordMonitorVisit(roomId, principal.userId).catch((error: unknown) => {
+              logger.error({ err: error, roomId }, 'Không ghi được nhật ký giám sát');
+            });
+          }
           ack({ ok: true, data: { ...(await lobby.buildState(roomId, 'member')), monitor: true } });
           return;
         }
