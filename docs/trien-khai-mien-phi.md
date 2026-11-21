@@ -37,7 +37,7 @@ Ghi các giá trị sau vào một chỗ an toàn (không commit). Bạn sẽ đ
 | `DATABASE_URL` | 4 – Neon |
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | 5 – LiveKit Cloud |
 | `S3_*` | 6 – Backblaze B2 (không bắt buộc) |
-| `SMTP_URL`, `MAIL_FROM` | 8 – Gmail (không bắt buộc) |
+| `SMTP_URL`, `MAIL_FROM` | 8 – Brevo (không bắt buộc) |
 
 ## 4. Neon (PostgreSQL)
 
@@ -135,21 +135,56 @@ Nếu deploy lỗi, xem **Logs** của service `olympia-api`:
 
 ## 8. Gửi email (không bắt buộc)
 
-Tài khoản Host phải **xác minh email** mới tạo được phòng và câu hỏi. Có hai cách:
+Tài khoản Host phải **xác minh email** mới tạo được phòng và câu hỏi. Email cũng dùng để đặt lại mật khẩu. Có hai cách: gửi email thật qua Brevo, hoặc xác minh tay trong database.
 
-- **Dùng Gmail.** Bật xác minh 2 bước cho tài khoản Google, tạo **App password** (Tài khoản Google → Bảo mật → Mật khẩu ứng dụng), rồi trong Render → `olympia-api` → **Environment** đặt:
+> **Không dùng được Gmail SMTP trên Render gói free.** Gói free của Render chặn kết nối ra ngoài qua các cổng SMTP 25, 465 và 587. Log sẽ báo `Gửi email thất bại` kèm `Connection timeout` hoặc `ETIMEDOUT`, còn người dùng vẫn thấy đăng ký thành công vì email được gửi ở chế độ chạy nền. Brevo nhận SMTP qua cổng **2525**, cổng này không bị chặn.
 
-  ```
-  SMTP_URL=smtps://ten.ban%40gmail.com:matkhauungdung16kytu@smtp.gmail.com:465
-  MAIL_FROM=Olympia Online <ten.ban@gmail.com>
-  ```
+### Cách 1: Gửi email qua Brevo
 
-  Ký tự `@` trong email viết thành `%40`. Mật khẩu ứng dụng viết liền, không có dấu cách.
-- **Xác minh tay**, không cần email. Sau khi đăng ký, vào Neon → **SQL Editor** và chạy:
+Gói miễn phí của Brevo cho khoảng 300 email mỗi ngày và không cần thẻ thanh toán.
 
-  ```sql
-  UPDATE users SET email_verified_at = now() WHERE email = 'email.cua.ban@gmail.com';
-  ```
+1. **Đăng ký** tại [brevo.com](https://www.brevo.com) và xác nhận email. Brevo hỏi thêm vài thông tin như tên, công ty hay website. Điền thông tin cá nhân là được.
+2. **Thêm người gửi**: bấm **Settings** (góc dưới bên trái) → **Senders, domains, IPs** → tab **Senders** → **Add sender**, hoặc mở thẳng `https://app.brevo.com/senders`. Điền tên `Olympia Online` và địa chỉ Gmail của bạn. Brevo gửi mã xác nhận tới địa chỉ đó; nhập mã để hoàn tất.
+3. **Lấy thông tin SMTP**: bấm **Settings** → **SMTP & API** → tab **SMTP**, hoặc mở thẳng `https://app.brevo.com/settings/keys/smtp`.
+   - Ghi lại **Login**, dạng `8a1b2c001@smtp-brevo.com`. Đây không phải email đăng nhập Brevo của bạn.
+   - Bấm **Generate a new SMTP key**, đặt tên ví dụ `olympia-render`, rồi copy khóa. Khóa có dạng `xsmtpsib-...` và **chỉ hiện một lần**.
+4. **Điền vào Render**: mở `olympia-api` → **Environment**, sửa hai biến:
+
+   ```
+   SMTP_URL=smtp://8a1b2c001%40smtp-brevo.com:xsmtpsib-xxxxxxxx@smtp-relay.brevo.com:2525
+   MAIL_FROM=Olympia Online <ten.ban@gmail.com>
+   ```
+
+   - Ký tự `@` trong Login phải viết thành `%40`. Dấu `@` duy nhất còn lại là dấu đứng trước `smtp-relay.brevo.com`.
+   - Dùng `smtp://` (không có `s`) và cổng `2525`. Kết nối vẫn được mã hóa vì API tự nâng cấp lên TLS (STARTTLS).
+   - Địa chỉ trong `MAIL_FROM` phải là địa chỉ đã xác nhận ở bước 2 và phải có dấu `< >`. Không thêm dấu nháy khi dán vào Render.
+
+   Bấm **Save Changes**. Render tự deploy lại.
+5. **Bỏ chặn IP**: tài khoản Brevo mới chỉ cho gửi SMTP từ các IP đã duyệt, mà IP của Render gói free có thể thay đổi. Vào **Settings → Security → Authorized IPs** (`https://app.brevo.com/security/authorised_ips`), ở khung **Blocking unauthorized IP addresses** bấm **Deactivate for SMTP keys** (dòng **API keys** để nguyên). Nếu bỏ qua bước này, log Render sẽ báo `525 5.7.1 Unauthorized IP address`.
+6. **Kiểm tra**: đăng ký một tài khoản mới, hoặc dùng chức năng **Quên mật khẩu**. Email thường tới trong vòng một phút. Brevo lưu lịch sử gửi ở **Transactional → Logs** (hoặc **Statistics**).
+
+Nếu không nhận được email:
+
+| Hiện tượng | Cách xử lý |
+| --- | --- |
+| Email nằm trong **Spam** | Bình thường khi gửi qua Brevo mà địa chỉ người gửi là Gmail. Đánh dấu "Không phải thư rác". Muốn hết hẳn thì cần tên miền riêng và xác thực tên miền đó trong Brevo (mục **Domains**). |
+| Log Render có `Invalid login` hoặc `535` | Sai Login hoặc SMTP key. Kiểm tra lại `%40` trong Login và chắc chắn đã dán SMTP key, không phải API key. |
+| Log Render có `525 5.7.1 Unauthorized IP address` | Brevo đang chặn IP của Render. Làm bước 5 (tắt chặn IP lạ). |
+| Log Render có `Connection timeout` / `ETIMEDOUT` | `SMTP_URL` vẫn dùng cổng 587 hoặc 465. Đổi sang `2525`. |
+| Brevo báo người gửi chưa hợp lệ, hoặc không có log gửi | Địa chỉ trong `MAIL_FROM` khác địa chỉ đã xác nhận ở bước 2. |
+| Tài khoản Brevo bị tạm khóa hoặc đang chờ duyệt | Brevo đôi khi kiểm tra tài khoản mới. Trả lời email của Brevo, hoặc dùng cách 2 trong lúc chờ. |
+
+### Cách 2: Xác minh tay, không cần email
+
+Phù hợp khi chỉ có vài tài khoản Host. Sau khi đăng ký trên web, vào Neon → **SQL Editor** và chạy:
+
+```sql
+UPDATE users SET email_verified_at = now() WHERE email = 'email.cua.ban@gmail.com';
+```
+
+Khi chưa cấu hình email, chức năng **Quên mật khẩu** không gửi được thư. Super Admin có thể đặt lại mật khẩu cho người dùng trong trang quản trị, nhưng thao tác này cũng gửi email. Vì vậy nên cấu hình Brevo nếu có nhiều người dùng.
+
+### Quyền quản trị
 
 Muốn có quyền quản trị (Super Admin) thì chạy thêm:
 
@@ -190,6 +225,7 @@ Nếu lúc chơi gặp lỗi:
 | Trang mở được nhưng đăng nhập báo lỗi mạng | Render đang thức dậy (chờ khoảng 1 phút rồi thử lại), hoặc tên miền Render trong `vercel.json` sai. |
 | Vào phòng mãi hiện "Đang kết nối" | `VITE_SOCKET_URL` sai hoặc chưa Redeploy Vercel; `CORS_ORIGINS` trên Render không khớp tên miền Vercel. |
 | Không có video, chỉ có ảnh đại diện | Sai khóa LiveKit, hoặc trình duyệt chưa cho phép camera/micro. Trận vẫn chơi được. |
+| Đăng ký thành công nhưng không nhận được email xác minh | Xem log Render, tìm `Gửi email thất bại`, rồi đối chiếu bảng xử lý ở bước 8. Thường là do vẫn dùng Gmail SMTP (bị chặn cổng) hoặc email nằm trong Spam. |
 | Tải ảnh câu hỏi lên bị lỗi | Chưa cấu hình B2, CORS của bucket chưa có tên miền Vercel, hoặc `S3_REGION` không khớp Endpoint. |
 
 ## 11. Cập nhật phiên bản
