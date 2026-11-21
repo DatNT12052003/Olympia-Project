@@ -9,7 +9,7 @@ const CONTROL_SIZES: Record<FieldSize, string> = {
 };
 
 function controlClass(size: FieldSize, invalid: boolean) {
-  return `block w-full rounded-lg bg-white px-3.5 text-slate-900 placeholder:text-slate-400 disabled:bg-slate-100 ${CONTROL_SIZES[size]} ${
+  return `block w-full rounded-lg bg-white pl-3.5 pr-7 text-slate-900 placeholder:text-slate-400 disabled:bg-slate-100 ${CONTROL_SIZES[size]} ${
     invalid ? 'border-2 border-orange-700' : 'border border-slate-300'
   }`;
 }
