@@ -321,6 +321,14 @@ describe('Bộ đề (5.3)', () => {
     ]);
     expect(afterRandom.roundCounts).toEqual({ warmup: 1, acceleration: 1 });
 
+    // Câu B (trắc nghiệm) còn khớp vòng nhưng bị loại theo dạng câu.
+    const byType = await api.post(`/api/question-sets/${set.id}/random`, {
+      count: 5,
+      round: 'acceleration',
+      answerType: 'true_false',
+    });
+    expect(byType.body.added).toBe(0);
+
     const replaced = await api.put(`/api/question-sets/${set.id}/items`, {
       items: [
         { questionId: b.id, round: 'acceleration' },
