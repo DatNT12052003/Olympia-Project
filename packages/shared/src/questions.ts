@@ -293,6 +293,8 @@ export const randomFillRequestSchema = z.object({
   subject: optionalText(50, 'Môn học tối đa 50 ký tự.').default(null),
   grade: z.number().int().min(MIN_GRADE).max(MAX_GRADE).nullable().default(null),
   difficulty: difficultySchema.nullable().default(null),
+  /** Chỉ lấy câu có dạng đáp án này (trắc nghiệm / đúng-sai / trả lời ngắn). */
+  answerType: answerTypeSchema.nullable().default(null),
 });
 export type RandomFillRequest = z.input<typeof randomFillRequestSchema>;
 

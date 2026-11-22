@@ -269,7 +269,7 @@ export function createQuestionSetsService({
       return { added, set: await detail(actor, setId) };
     },
 
-    /** Thêm câu ngẫu nhiên theo tiêu chí môn/lớp/độ khó/vòng (5.3). */
+    /** Thêm câu ngẫu nhiên theo tiêu chí môn/lớp/độ khó/dạng câu/vòng (5.3). */
     async randomFill(
       actor: UserPrincipal,
       setId: string,
@@ -292,6 +292,8 @@ export function createQuestionSetsService({
         if (input.grade) qb.andWhere('q.grade = :grade', { grade: input.grade });
         if (input.difficulty)
           qb.andWhere('q.difficulty = :difficulty', { difficulty: input.difficulty });
+        if (input.answerType)
+          qb.andWhere('q.answerType = :answerType', { answerType: input.answerType });
         const picked = await qb.orderBy('random()').limit(input.count).getRawMany<{ id: string }>();
         return append(
           manager,

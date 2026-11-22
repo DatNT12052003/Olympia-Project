@@ -1,4 +1,6 @@
 import {
+  type AnswerType,
+  answerTypeSchema,
   type Difficulty,
   difficultySchema,
   type QuestionSetDetail,
@@ -22,6 +24,7 @@ import {
   useQuestionSet,
 } from '../../features/question-bank/qb-api';
 import {
+  ANSWER_TYPE_LABELS,
   DIFFICULTY_LABELS,
   formatDate,
   publicationLabel,
@@ -135,6 +138,7 @@ function RandomDialog({
   const [matchRound, setMatchRound] = useState(true);
   const [subject, setSubject] = useState(set.subject ?? '');
   const [difficulty, setDifficulty] = useState<Difficulty | ''>('');
+  const [answerType, setAnswerType] = useState<AnswerType | ''>('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -149,6 +153,7 @@ function RandomDialog({
         matchRound,
         subject,
         difficulty: difficulty || null,
+        answerType: answerType || null,
       });
       onDone(result.set, result.added);
     } catch (err) {
@@ -204,6 +209,18 @@ function RandomDialog({
             {difficultySchema.options.map((d) => (
               <option key={d} value={d}>
                 {DIFFICULTY_LABELS[d]}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField
+            label="Loại câu"
+            value={answerType}
+            onChange={(e) => setAnswerType(e.target.value as AnswerType | '')}
+          >
+            <option value="">Tất cả</option>
+            {answerTypeSchema.options.map((t) => (
+              <option key={t} value={t}>
+                {ANSWER_TYPE_LABELS[t]}
               </option>
             ))}
           </SelectField>
