@@ -217,3 +217,56 @@ Mỗi hạng mục trong một giai đoạn chỉ được coi là xong khi: có
 | Chi phí hạ tầng video vượt dự kiến                             | Trung bình | Đo tải thực tế ở P6; giới hạn Spectator (DL-007); cân nhắc dịch vụ cloud.  |
 | Lộ đáp án qua payload realtime                                 | Cao       | Tách DTO theo vai trò người nhận; test tự động kiểm tra payload.           |
 | Phòng công khai bị phá bởi khách                               | Thấp      | Host duyệt, kick/ban, tùy chọn tắt khách (DL-001).                          |
+
+---
+
+## 7. Cập nhật bổ sung sau P8
+
+> Ghi lại các thay đổi ngoài kế hoạch P0–P8 và hướng phát triển tiếp theo. Cập nhật lần cuối: 2026-11-26.
+
+### 7.1. Đã làm sau P8
+
+| Ngày       | Hạng mục | Nội dung | Phạm vi |
+| ---------- | -------- | -------- | ------- |
+| 2026-11-20 | Triển khai không cần VPS | Hướng dẫn chạy API + Key Value trên Render (`render.yaml`), web trên Vercel (`vercel.json` chuyển `/api` sang Render), PostgreSQL Neon, LiveKit Cloud; web nối Socket.IO thẳng tới API qua `VITE_SOCKET_URL` lúc build. Xem [trien-khai-mien-phi.md](trien-khai-mien-phi.md). | docs, `render.yaml`, `vercel.json` |
+| 2026-11-20 | Sửa lỗi deploy API | Render không xử lý dấu nháy trong `dockerCommand`, nên lệnh chạy migration rồi khởi động API được chuyển vào script `npm run start:migrate` của `apps/api`. | `apps/api/package.json`, `render.yaml` |
+| 2026-11-21 | Đổi nhà cung cấp email | Gửi email (xác minh, đặt lại mật khẩu) qua SMTP của **Brevo** thay cho Gmail trong hướng dẫn triển khai miễn phí. | docs |
+| 2026-11-21 | Chỉnh giao diện ô nhập | Sửa padding `TextField` và style thẻ `select` cho đồng nhất với thiết kế `Main`. | web |
+| 2026-11-22 | Lọc theo dạng câu khi thêm câu ngẫu nhiên | "Thêm câu ngẫu nhiên" vào bộ đề (5.3) lọc được thêm theo **dạng đáp án** (trắc nghiệm / đúng-sai / trả lời ngắn): trường `answerType` trong `randomFillRequestSchema`, lọc ở `question-sets.service.ts`, ô chọn ở `QuestionSetPage`. Có test API. | shared, api, web |
+| 2026-11-24 | Favicon, logo, web app manifest | Thêm `favicon.ico/svg`, `apple-touch-icon`, icon 192/512, logo sáng/tối và `site.webmanifest` để cài lên màn hình chính điện thoại (chưa có chế độ offline). | web |
+
+### 7.2. Việc còn lại trước phát hành
+
+Giữ nguyên theo [nghiem-thu-p8.md mục 5](nghiem-thu-p8.md#5-việc-còn-lại-trước-phát-hành). Đây là điều kiện để đạt mốc **M4**:
+
+1. Dựng staging và đo lại tải ở quy mô ≥ 200 phòng / 5.000 kết nối, đo độ trễ video (≤ 500 ms, ≥ 100 phòng có video) và gọi video qua 4G.
+2. Chơi thử trọn trận trên thiết bị thật: iPhone (Safari), iPad, Android, Edge.
+3. Rà soát pháp lý chính sách quyền riêng tư (BR-DATA-06).
+4. (Nên làm) E2E cho các luồng quản lý: ngân hàng câu hỏi, kịch bản, quản trị.
+5. Xác nhận DL-052 (công cụ kiểm thử tải).
+6. (Nên làm) Kiểm thử xâm nhập độc lập trước khi mở cho nhiều người dùng.
+
+### 7.3. Đề xuất cập nhật tiếp theo
+
+> Đây là **đề xuất** và chưa được xác nhận. Mỗi hạng mục cần một DL mới trong [decision log](decision-log.md) và cần ước lượng lại trước khi đưa vào kế hoạch. Nguồn: mục 1.1 (phần chuyển sang giai đoạn sau) và mục 17 của đặc tả.
+
+**P9 – Bổ sung ngân hàng câu hỏi và trải nghiệm (ngắn hạn, khoảng 2–3 tuần)**
+
+- Nhập/xuất câu hỏi qua Excel/CSV: file mẫu, kiểm tra từng dòng, báo lỗi theo dòng, nhập theo lô vào một bộ đề.
+- Câu hỏi âm thanh: upload qua presigned URL như ảnh/video (DL-035), giới hạn dung lượng trong cấu hình hệ thống, phát đồng bộ trên màn hình Player/Spectator.
+- E2E cho các luồng quản lý (nếu chưa làm ở 7.2).
+- PWA: cache tĩnh để mở nhanh và trang báo "mất kết nối". Không chơi offline vì server là nguồn sự thật.
+
+**P10 – Cộng đồng và người chơi (trung hạn)**
+
+- Xếp hạng và thành tích người chơi: bảng xếp hạng theo mùa và huy hiệu, tính từ `match_question_outcomes` hiện có. Không tính trận đã bị hủy kết quả.
+- Thống kê quá trình học tập: tỉ lệ đúng theo môn/chủ đề/độ khó theo thời gian, trên trang lịch sử của Player.
+- Đánh giá bộ đề public: chấm sao, nhận xét, sắp xếp theo đánh giá. Tận dụng luồng báo cáo vi phạm sẵn có.
+
+**P11 – Giải đấu và format mới (dài hạn)**
+
+- Giải đấu nhiều vòng, nhiều phòng, nhiều bảng; giải theo chủ đề/cấp học: tạo lịch, chia bảng, tự tạo phòng, đưa người thắng lên vòng sau.
+- Nhiều bộ luật và format gameshow khác: thêm plugin vòng/format mới qua `round-registry` mà không sửa Room Management hay Realtime (ràng buộc kiến trúc).
+- Ghi hình và phát lại trận: dùng LiveKit Egress cho video và phát lại theo nhật ký sự kiện trận. Phải sửa BR-AV-03 và chính sách dữ liệu cá nhân, và rà soát pháp lý lại.
+- AI hỗ trợ tạo câu hỏi, đáp án, giải thích và phân loại câu theo môn/lớp/độ khó. Host luôn duyệt trước khi lưu vào ngân hàng.
+- Đa ngôn ngữ cho giao diện (hiện chỉ có tiếng Việt).
